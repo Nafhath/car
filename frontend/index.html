@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="A thrilling web-based car racing game with realistic physics, drift mechanics, mystery power-ups, and stunning neon visuals.">
+    <title>Neon Drift — Racing Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Start Screen -->
+    <div id="start-screen" class="screen active">
+        <div class="start-content">
+            <h1 class="game-title">NEON<span class="accent">DRIFT</span></h1>
+            <p class="tagline">Feel the speed. Master the drift.</p>
+
+            <!-- Player Name -->
+            <div class="name-input-section">
+                <label for="player-name">YOUR NAME</label>
+                <input type="text" id="player-name" maxlength="15" placeholder="Enter your name..." value="">
+            </div>
+
+            <div class="car-select">
+                <h3>Choose Your Ride</h3>
+                <div class="car-options" id="car-options">
+                    <button class="car-option selected" data-car="sport" id="car-sport">
+                        <div class="car-preview sport-preview"></div>
+                        <span>Sport</span>
+                        <small>Balanced</small>
+                    </button>
+                    <button class="car-option" data-car="muscle" id="car-muscle">
+                        <div class="car-preview muscle-preview"></div>
+                        <span>Muscle</span>
+                        <small>Power</small>
+                    </button>
+                    <button class="car-option" data-car="drift" id="car-drift">
+                        <div class="car-preview drift-preview"></div>
+                        <span>Drift King</span>
+                        <small>Handling</small>
+                    </button>
+                    <button class="car-option" data-car="supercar" id="car-supercar">
+                        <div class="car-preview supercar-preview"></div>
+                        <span>Supercar</span>
+                        <small>Speed</small>
+                    </button>
+                    <button class="car-option" data-car="truck" id="car-truck">
+                        <div class="car-preview truck-preview"></div>
+                        <span>Truck</span>
+                        <small>Tank</small>
+                    </button>
+                    <button class="car-option" data-car="rally" id="car-rally">
+                        <div class="car-preview rally-preview"></div>
+                        <span>Rally</span>
+                        <small>Agile</small>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Color Picker -->
+            <div class="color-picker-section">
+                <h3>Car Color</h3>
+                <div class="color-picker-row">
+                    <div class="color-swatches" id="color-swatches">
+                        <button class="color-swatch selected" data-color="#ff2d95"
+                            style="background:linear-gradient(135deg,#ff2d95,#ff6a00)" id="swatch-0"></button>
+                        <button class="color-swatch" data-color="#00f0ff"
+                            style="background:linear-gradient(135deg,#00f0ff,#0066ff)" id="swatch-1"></button>
+                        <button class="color-swatch" data-color="#39ff14"
+                            style="background:linear-gradient(135deg,#39ff14,#00cc44)" id="swatch-2"></button>
+                        <button class="color-swatch" data-color="#ffd700"
+                            style="background:linear-gradient(135deg,#ffd700,#ff8c00)" id="swatch-3"></button>
+                        <button class="color-swatch" data-color="#ff4444"
+                            style="background:linear-gradient(135deg,#ff4444,#cc0000)" id="swatch-4"></button>
+                        <button class="color-swatch" data-color="#b829ff"
+                            style="background:linear-gradient(135deg,#b829ff,#6600cc)" id="swatch-5"></button>
+                        <button class="color-swatch" data-color="#ffffff"
+                            style="background:linear-gradient(135deg,#ffffff,#bbbbbb)" id="swatch-6"></button>
+                        <button class="color-swatch" data-color="#222222"
+                            style="background:linear-gradient(135deg,#444444,#111111)" id="swatch-7"></button>
+                    </div>
+                    <div class="custom-color-wrap">
+                        <label for="custom-color">Custom:</label>
+                        <input type="color" id="custom-color" value="#ff2d95">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mode-buttons">
+                <button id="singleplayer-btn" class="neon-btn">
+                    <span>SINGLE PLAYER</span>
+                    <div class="btn-glow"></div>
+                </button>
+                <button id="multiplayer-btn" class="neon-btn">
+                    <span>MULTIPLAYER</span>
+                    <div class="btn-glow"></div>
+                </button>
+            </div>
+            <div class="controls-hint">
+                <p>🎮 <strong>↑</strong> Accelerate &nbsp; <strong>↓</strong> Brake &nbsp; <strong>←</strong>
+                    <strong>→</strong> Steer &nbsp; <strong>SPACE</strong> Handbrake
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lobby Screen -->
+    <div id="lobby-screen" class="screen">
+        <div class="lobby-content">
+            <h2 class="lobby-title">RACE LOBBY</h2>
+            <div class="connection-info">
+                <span class="connection-status" id="connection-status">⏳ Connecting...</span>
+            </div>
+            <div class="lobby-players" id="lobby-players">
+                <!-- Player cards dynamically inserted -->
+            </div>
+            <div class="lobby-actions">
+                <button class="neon-btn" id="ready-btn"><span>READY</span></button>
+                <button class="neon-btn" id="start-race-btn" style="display:none"><span>START RACE</span></button>
+                <button class="neon-btn secondary" id="lobby-back-btn"><span>BACK</span></button>
+            </div>
+            <div class="controls-hint">
+                <p>Share your network URL with friends to join!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- HUD -->
+        <div id="hud">
+            <div class="hud-left">
+                <div class="speedometer" id="speedometer">
+                    <svg viewBox="0 0 200 200" class="speed-ring">
+                        <circle cx="100" cy="100" r="90" class="speed-track" />
+                        <circle cx="100" cy="100" r="90" class="speed-fill" id="speed-fill" />
+                    </svg>
+                    <div class="speed-value">
+                        <span id="speed-number">0</span>
+                        <span class="speed-unit">KM/H</span>
+                    </div>
+                </div>
+                <div class="gear-indicator" id="gear-indicator">N</div>
+            </div>
+            <div class="hud-center">
+                <div class="lap-info">
+                    <span class="lap-label">LAP</span>
+                    <span class="lap-value" id="lap-counter">1 / 3</span>
+                </div>
+                <div class="time-info">
+                    <span class="time-label">TIME</span>
+                    <span class="time-value" id="race-time">00:00.0</span>
+                </div>
+                <div class="best-lap-info">
+                    <span class="time-label">BEST LAP</span>
+                    <span class="time-value" id="best-lap">--:--.--</span>
+                </div>
+            </div>
+            <div class="hud-right">
+                <div class="position-display">
+                    <span class="position-label">POS</span>
+                    <span class="position-value" id="position">1<sup>st</sup></span>
+                </div>
+                <div class="minimap" id="minimap">
+                    <canvas id="minimapCanvas" width="160" height="160"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Power-up notification -->
+        <div id="powerup-notification" class="powerup-notification hidden">
+            <span id="powerup-icon">⚡</span>
+            <span id="powerup-text">SPEED BOOST!</span>
+        </div>
+
+        <!-- Active power-up indicator -->
+        <div id="active-powerup" class="active-powerup hidden">
+            <span id="active-powerup-icon">⚡</span>
+            <div class="powerup-timer-bar">
+                <div class="powerup-timer-fill" id="powerup-timer-fill"></div>
+            </div>
+        </div>
+
+        <!-- Race start countdown -->
+        <div id="countdown" class="countdown hidden">
+            <span id="countdown-text">3</span>
+        </div>
+
+        <!-- Drift indicator -->
+        <div id="drift-indicator" class="drift-indicator hidden">
+            <span>DRIFT!</span>
+            <span id="drift-score" class="drift-score">+0</span>
+        </div>
+
+        <!-- Pause overlay -->
+        <div id="pause-overlay" class="overlay hidden">
+            <h2>PAUSED</h2>
+            <button class="neon-btn" id="resume-btn"><span>RESUME</span></button>
+            <button class="neon-btn secondary" id="quit-btn"><span>QUIT</span></button>
+        </div>
+
+        <!-- Mobile Touch Controls -->
+        <div id="mobile-controls" class="mobile-controls">
+            <div class="touch-left">
+                <button class="touch-btn touch-steer-left" id="touch-left">◀</button>
+                <button class="touch-btn touch-steer-right" id="touch-right">▶</button>
+            </div>
+            <div class="touch-right">
+                <button class="touch-btn touch-gas" id="touch-gas">▲<span>GAS</span></button>
+                <button class="touch-btn touch-brake" id="touch-brake">▼<span>BRK</span></button>
+                <button class="touch-btn touch-handbrake" id="touch-handbrake">⟳<span>DRIFT</span></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Finish Screen -->
+    <div id="finish-screen" class="screen">
+        <div class="finish-content">
+            <h2 class="finish-title">RACE COMPLETE</h2>
+            <div class="results">
+                <div class="result-row">
+                    <span>Total Time</span>
+                    <span id="final-time" class="result-value">00:00.0</span>
+                </div>
+                <div class="result-row">
+                    <span>Best Lap</span>
+                    <span id="final-best-lap" class="result-value">00:00.0</span>
+                </div>
+                <div class="result-row">
+                    <span>Max Speed</span>
+                    <span id="final-max-speed" class="result-value">0 km/h</span>
+                </div>
+                <div class="result-row">
+                    <span>Drift Score</span>
+                    <span id="final-drift-score" class="result-value">0</span>
+                </div>
+                <div class="result-row">
+                    <span>Power-Ups Used</span>
+                    <span id="final-powerups" class="result-value">0</span>
+                </div>
+            </div>
+            <div class="finish-actions">
+                <button class="neon-btn" id="restart-btn"><span>RACE AGAIN</span></button>
+                <button class="neon-btn secondary" id="menu-btn"><span>MAIN MENU</span></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="network.js"></script>
+    <script src="game.js"></script>
+    <script src="renderer.js"></script>
+</body>
+
+</html>
