@@ -9,7 +9,7 @@
    ======================================== */
 
 // ⚡ SET YOUR RENDER BACKEND URL HERE FOR PRODUCTION ⚡
-const WS_URL = null; // e.g., 'wss://neon-drift-server.onrender.com'
+const WS_URL = 'wss://car-i729.onrender.com';
 
 function getWebSocketURL() {
     // If explicitly configured, use that
