@@ -1003,49 +1003,6 @@ body {
 }
 
 /* ========================================
-   PWA INSTALL BANNER
-   ======================================== */
-.install-banner {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-    background: var(--glass-bg);
-    border: 1px solid var(--neon-cyan);
-    border-radius: 12px;
-    padding: 0.7rem 1.2rem;
-    margin-top: 1.2rem;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
-    animation: fadeInUp 0.5s ease-out;
-}
-
-.install-banner span {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 1rem;
-    color: var(--text-primary);
-    flex: 1;
-}
-
-.neon-btn.small {
-    padding: 0.4rem 1rem;
-    font-size: 0.75rem;
-}
-
-.install-dismiss {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    font-size: 1.4rem;
-    cursor: pointer;
-    padding: 0 0.3rem;
-    line-height: 1;
-}
-
-.install-dismiss:hover {
-    color: var(--text-primary);
-}
-
-/* ========================================
    MOBILE TOUCH CONTROLS
    ======================================== */
 .mobile-controls {

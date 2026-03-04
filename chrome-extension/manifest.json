@@ -1,0 +1,17 @@
+{
+    "manifest_version": 3,
+    "name": "Neon Drift Racing",
+    "version": "1.0.0",
+    "description": "Offline neon racing game with drift mechanics, 6 cars, power-ups, and stunning visuals.",
+    "icons": {
+        "128": "icon128.png"
+    },
+    "action": {
+        "default_icon": "icon128.png",
+        "default_title": "Play Neon Drift"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "permissions": []
+}
