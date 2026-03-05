@@ -12,11 +12,10 @@ let carsToRender = [];
 let projectilesToRender = [];
 let bulletsToRender = [];
 
-// Canvas setup (shared with engine3d.js)
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas ? canvas.getContext('2d') : null;
-
-// Note: carModels is defined in engine3d.js - do not redeclare here
+// NOTE: canvas, ctx, and carModels are all declared in engine3d.js.
+// Do NOT redeclare them here — duplicate const declarations crash the page.
+// renderer.js loads before engine3d.js (see index.html script order),
+// so these globals are available by the time any render function is called.
 
 // Set cars to render (called from game.js)
 function setCarsToRender(cars) {

@@ -676,8 +676,29 @@ preloadAssets(() => {
 
     const keys = { up: false, down: false, left: false, right: false, space: false, shoot: false, _shootHeld: false };
 
-    // Input setup (consolidated)
-    setupInputHandling(keys);
+    // Keyboard input
+    const KEY_MAP = {
+        ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+        Space: 'space', KeyF: 'shoot', KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right'
+    };
+    document.addEventListener('keydown', e => {
+        if (KEY_MAP[e.code]) { keys[KEY_MAP[e.code]] = true; e.preventDefault(); }
+    });
+    document.addEventListener('keyup', e => {
+        if (KEY_MAP[e.code]) keys[KEY_MAP[e.code]] = false;
+    });
+
+    // Touch controls
+    const touchMap = {
+        'touch-gas': 'up', 'touch-brake': 'down', 'touch-left': 'left',
+        'touch-right': 'right', 'touch-handbrake': 'space', 'touch-fire': 'shoot'
+    };
+    Object.entries(touchMap).forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('touchstart', e => { keys[key] = true; e.preventDefault(); }, { passive: false });
+        el.addEventListener('touchend', () => { keys[key] = false; });
+    });
 
     // Difficulty buttons
     document.querySelectorAll('.diff-btn').forEach(btn => {
@@ -884,29 +905,4 @@ function formatTime(seconds) {
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + '.' + ms;
 }
 
-// Input handling setup (consolidated function)
-function setupInputHandling(keys) {
-    // Keyboard input
-    const KEY_MAP = {
-        ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
-        Space: 'space', KeyF: 'shoot', KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right'
-    };
-    document.addEventListener('keydown', e => {
-        if (KEY_MAP[e.code]) { keys[KEY_MAP[e.code]] = true; e.preventDefault(); }
-    });
-    document.addEventListener('keyup', e => {
-        if (KEY_MAP[e.code]) keys[KEY_MAP[e.code]] = false;
-    });
 
-    // Touch controls
-    const touchMap = {
-        'touch-gas': 'up', 'touch-brake': 'down', 'touch-left': 'left',
-        'touch-right': 'right', 'touch-handbrake': 'space', 'touch-fire': 'shoot'
-    };
-    Object.entries(touchMap).forEach(([id, key]) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener('touchstart', e => { keys[key] = true; e.preventDefault(); }, { passive: false });
-        el.addEventListener('touchend', () => { keys[key] = false; });
-    });
-}
