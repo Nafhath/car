@@ -344,8 +344,8 @@ class Projectile {
 // ============= CAR PHYSICS =============
 class Car {
     constructor(x, y, angle, carType, color1, color2) {
-        this.x = x; this.y = y; this.angle = angle;
-        this.speed = 0; this.velocity = { x: 0, y: 0 };
+        this.x = x; this.y = y; this.z = 0; this.angle = angle;
+        this.speed = 0; this.velocity = { x: 0, y: 0, z: 0 };
         this.steerAngle = 0; this.throttle = 0; this.brake = 0; this.handbrake = false;
         this.carType = carType;
         this.config = CONFIG.cars[carType];
@@ -630,3 +630,41 @@ class AICar {
         if (dist < 80) this.currentTarget = (this.currentTarget + 1) % this.trackPoints.length;
     }
 }
+// ============= IMAGE LOADER & CACHE =============
+const IMAGE_CACHE = {};
+let imagesLoaded = 0;
+const totalImages = Object.keys(CONFIG.cars).length;
+
+function preloadAssets(callback) {
+    console.log("Starting asset preload...");
+    
+    Object.keys(CONFIG.cars).forEach(key => {
+        const img = new Image();
+        img.src = `assets/${key}.png`; 
+        
+        img.onload = () => {
+            imagesLoaded++;
+            IMAGE_CACHE[key] = img;
+            if (imagesLoaded === totalImages) {
+                console.log("All assets loaded successfully.");
+                callback();
+            }
+        };
+
+        img.onerror = () => {
+            console.error(`Failed to load asset: assets/${key}.png`);
+            IMAGE_CACHE[key] = null; 
+            imagesLoaded++;
+            if (imagesLoaded === totalImages) callback();
+        };
+    });
+}
+
+// ============= GAME INITIALIZATION =============
+// This replaces your old 'window.onload' or automatic start logic
+preloadAssets(() => {
+    console.log("Neon Drift v3 Engine Initialized.");
+    
+    // Call your main game setup function here
+    // For example: initGame(); or startGame();
+});
