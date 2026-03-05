@@ -12,6 +12,12 @@ let carsToRender = [];
 let projectilesToRender = [];
 let bulletsToRender = [];
 
+// Canvas setup (shared with engine3d.js)
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas ? canvas.getContext('2d') : null;
+
+// Note: carModels is defined in engine3d.js - do not redeclare here
+
 // Set cars to render (called from game.js)
 function setCarsToRender(cars) {
     carsToRender = cars;
@@ -29,59 +35,63 @@ function setBulletsToRender(bullets) {
 
 // Render all cars in 3D space
 function renderCars(playerCar, cameraX, cameraY, cameraZ) {
-    // Sort cars by distance (furthest first) for proper overlap
-    const sortedCars = [...carsToRender].sort((a, b) => {
-        const distA = Math.sqrt(Math.pow(a.x - cameraX, 2) + Math.pow(a.y - cameraY, 2) + Math.pow(a.z - cameraZ, 2));
-        const distB = Math.sqrt(Math.pow(b.x - cameraX, 2) + Math.pow(b.y - cameraY, 2) + Math.pow(b.z - cameraZ, 2));
-        return distB - distA;
-    });
+    try {
+        // Sort cars by distance (furthest first) for proper overlap
+        const sortedCars = [...carsToRender].sort((a, b) => {
+            const distA = Math.sqrt(Math.pow(a.x - cameraX, 2) + Math.pow(a.y - cameraY, 2) + Math.pow(a.z - cameraZ, 2));
+            const distB = Math.sqrt(Math.pow(b.x - cameraX, 2) + Math.pow(b.y - cameraY, 2) + Math.pow(b.z - cameraZ, 2));
+            return distB - distA;
+        });
 
-    // Render each car
-    sortedCars.forEach(car => {
-        if (!car || !car.carType || !carModels[car.carType]) return;
-        
-        const carImg = carModels[car.carType].img;
-        if (!carImg.complete || carImg.naturalWidth === 0) return;
+        // Render each car
+        sortedCars.forEach(car => {
+            if (!car || !car.carType || !carModels[car.carType]) return;
+            
+            const carImg = carModels[car.carType].img;
+            if (!carImg || !carImg.complete || carImg.naturalWidth === 0) return;
 
-        // Calculate car position in 3D space
-        const carPos = { x: car.x, y: car.y, z: car.z || 0 };
-        const projected = project(carPos, cameraX, cameraY, cameraZ);
-        
-        // Calculate car size based on distance (scale factor)
-        const distance = Math.abs(carPos.z - cameraZ);
-        const baseSize = 40; // Base car size at distance 1
-        const scale = cameraDepth / distance;
-        const carWidth = baseSize * scale * car.miniScale;
-        const carHeight = (car.width || 46) * scale * car.miniScale;
+            // Calculate car position in 3D space
+            const carPos = { x: car.x, y: car.y, z: car.z || 0 };
+            const projected = project(carPos, cameraX, cameraY, cameraZ);
+            
+            // Calculate car size based on distance (scale factor)
+            const distance = Math.abs(carPos.z - cameraZ);
+            const baseSize = 40; // Base car size at distance 1
+            const scale = cameraDepth / distance;
+            const carWidth = baseSize * scale * car.miniScale;
+            const carHeight = (car.width || 46) * scale * car.miniScale;
 
-        // Calculate car rotation
-        const carAngle = car.angle || 0;
-        
-        // Save canvas state for rotation
-        ctx.save();
-        
-        // Move to projected position (center of car)
-        ctx.translate(projected.x, projected.y);
-        
-        // Rotate canvas by car angle
-        ctx.rotate(carAngle);
-        
-        // Draw car (flipped for correct orientation)
-        ctx.scale(1, -1); // Flip vertically for correct orientation
-        
-        // Draw the car image
-        if (carImg && carImg.complete && carImg.naturalWidth > 0) {
-            ctx.drawImage(carImg, -carWidth/2, -carHeight/2, carWidth, carHeight);
-        }
-        
-        // Restore canvas state
-        ctx.restore();
+            // Calculate car rotation
+            const carAngle = car.angle || 0;
+            
+            // Save canvas state for rotation
+            ctx.save();
+            
+            // Move to projected position (center of car)
+            ctx.translate(projected.x, projected.y);
+            
+            // Rotate canvas by car angle
+            ctx.rotate(carAngle);
+            
+            // Draw car (flipped for correct orientation)
+            ctx.scale(1, -1); // Flip vertically for correct orientation
+            
+            // Draw the car image
+            if (carImg && carImg.complete && carImg.naturalWidth > 0) {
+                ctx.drawImage(carImg, -carWidth/2, -carHeight/2, carWidth, carHeight);
+            }
+            
+            // Restore canvas state
+            ctx.restore();
 
-        // Draw health bar for AI cars (if close enough)
-        if (car !== playerCar && distance < 500) {
-            drawHealthBar(car, projected, scale);
-        }
-    });
+            // Draw health bar for AI cars (if close enough)
+            if (car !== playerCar && distance < 500) {
+                drawHealthBar(car, projected, scale);
+            }
+        });
+    } catch (error) {
+        console.error('Error rendering cars:', error);
+    }
 }
 
 // Draw health bar for cars
