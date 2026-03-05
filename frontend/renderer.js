@@ -1,27 +1,16 @@
 /**
  * RENDERER.JS - 3D Car Rendering System
  * Integrates 3D projection with car physics for proper 3D rendering
+ *
+ * NOTE: width, height, roadWidth, cameraDepth and project() are defined
+ * in engine3d.js which loads after this file. They are shared globals.
+ * Do NOT redeclare them here — that causes a SyntaxError in the browser.
  */
 
 // Global variables for 3D rendering
 let carsToRender = [];
 let projectilesToRender = [];
 let bulletsToRender = [];
-
-// 3D Projection Math (copied from engine3d.js for integration)
-const width = 800;
-const height = 600;
-const roadWidth = 2000;
-const cameraDepth = 0.8;
-
-function project(p, cameraX, cameraY, cameraZ) {
-    const scale = cameraDepth / (p.z - cameraZ);
-    return {
-        x: Math.round((width / 2) + (scale * (p.x - cameraX) * width / 2)),
-        y: Math.round((height / 2) - (scale * (p.y - cameraY) * height / 2)),
-        w: Math.round(scale * roadWidth * width / 2)
-    };
-}
 
 // Set cars to render (called from game.js)
 function setCarsToRender(cars) {

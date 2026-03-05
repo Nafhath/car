@@ -254,7 +254,6 @@ function buildTrackEdges(centerLine, halfWidth) {
     return { inner, outer };
 }
 
-// Build shortcut path (a narrow cut across a curve)
 function generateShortcuts(trackCenter, n) {
     const shortcuts = [];
     const segLen = Math.floor(n / 4);
@@ -262,7 +261,6 @@ function generateShortcuts(trackCenter, n) {
         const startIdx = Math.floor(segLen * (s + 1) + Math.random() * segLen * 0.3);
         const endIdx = (startIdx + Math.floor(segLen * 0.5)) % n;
         const sp = trackCenter[startIdx % n], ep = trackCenter[endIdx];
-        // Midpoint slightly offset
         const mx = (sp.x + ep.x) / 2 + (Math.random() - 0.5) * 60;
         const my = (sp.y + ep.y) / 2 + (Math.random() - 0.5) * 60;
         shortcuts.push({ entry: sp, mid: { x: mx, y: my }, exit: ep, startIdx: startIdx % n, endIdx, width: 30 });
@@ -270,7 +268,6 @@ function generateShortcuts(trackCenter, n) {
     return shortcuts;
 }
 
-// Build pit lane alongside start area
 function generatePitLane(trackCenter, trackWidth) {
     const n = trackCenter.length;
     const pitStart = Math.floor(n * 0.95);
@@ -372,6 +369,8 @@ class Car {
         // Damage visual
         this.damageFlash = 0;
         this.sparks = [];
+        // Bug fix #4: separate respawn invulnerability timer
+        this.respawnShieldTimer = 0;
     }
 
     update(dt, keys) {
@@ -476,6 +475,18 @@ class Car {
             this.powerupTimer -= dt;
             if (this.powerupTimer <= 0) this.clearPowerup();
         }
+        // Bug fix #4: tick respawn invulnerability separately from powerupTimer
+        if (this.respawnShieldTimer > 0) {
+            this.respawnShieldTimer -= dt;
+            this.shielded = true;
+            if (this.respawnShieldTimer <= 0) {
+                this.respawnShieldTimer = 0;
+                // Only drop shield if no shield powerup is active
+                if (!this.activePowerup || this.activePowerup.id !== 'shield') {
+                    this.shielded = false;
+                }
+            }
+        }
         // Weapon cooldown
         if (this.weaponCooldown > 0) this.weaponCooldown -= dt;
         // Machine gun cooldown
@@ -520,7 +531,6 @@ class Car {
         if (this.shielded) return;
         this.health = Math.max(0, this.health - amount);
         this.damageFlash = 0.5;
-        // Generate sparks
         for (let i = 0; i < 10; i++) {
             this.sparks.push({
                 x: this.x, y: this.y,
@@ -538,11 +548,11 @@ class Car {
         if (this.lives > 0) {
             this.health = CONFIG.MAX_HEALTH;
             this.speed = 0;
-            this.velocity = { x: 0, y: 0 };
-            // Simple respawn: stay in place but invulnerable briefly
-            this.shielded = true;
-            this.powerupTimer = 2;
-            this.powerupDuration = 2;
+            // Bug fix #6: preserve velocity.z so 3D renderer never sees undefined
+            this.velocity = { x: 0, y: 0, z: 0 };
+            // Bug fix #4: use dedicated timer so picking up a powerup during
+            // the invulnerability window does NOT cancel the respawn shield.
+            this.respawnShieldTimer = 2;
         }
     }
 
@@ -555,7 +565,9 @@ class Car {
         this.powerupTimer = type.duration;
         this.powerupDuration = type.duration;
         this.speedMultiplier = 1; this.gripMultiplier = 1;
-        this.shielded = false; this.miniScale = 1;
+        // Bug fix #4: don't wipe shield if respawn timer is still running
+        if (this.respawnShieldTimer <= 0) this.shielded = false;
+        this.miniScale = 1;
 
         switch (type.id) {
             case 'speed': this.speedMultiplier = 1.35; break;
@@ -585,7 +597,9 @@ class Car {
     clearPowerup() {
         this.activePowerup = null; this.powerupTimer = 0;
         this.speedMultiplier = 1; this.gripMultiplier = 1;
-        this.shielded = false; this.miniScale = 1;
+        // Only clear shield if no respawn window is active
+        if (this.respawnShieldTimer <= 0) this.shielded = false;
+        this.miniScale = 1;
     }
 }
 
@@ -596,7 +610,8 @@ class AICar {
         this.trackPoints = trackPoints;
         this.currentTarget = offset || 0;
         const diff = DIFFICULTY[CONFIG.difficulty] || DIFFICULTY.medium;
-        this.speedVariation = diff.aiSpeed + (Math.random() - 0.5) * 0.1;
+        // Bug fix #7: clamp speedVariation so it never goes zero or negative
+        this.speedVariation = Math.max(0.1, diff.aiSpeed + (Math.random() - 0.5) * 0.1);
         this.lineOffset = (Math.random() - 0.5) * 40;
         this.lookahead = diff.aiLookahead + Math.floor(Math.random() * 6);
         this.reactionDelay = diff.aiReaction;
@@ -621,7 +636,6 @@ class AICar {
         if (Math.abs(fa) > 0.5 && Math.abs(this.car.speed) > 120) { keys.up = false; keys.down = true; }
         if (Math.abs(this.car.speed) > this.car.config.maxSpeed * this.speedVariation) keys.up = false;
 
-        // Hard mode: drift through tight corners
         if (CONFIG.difficulty === 'hard' && Math.abs(fa) > 0.8 && Math.abs(this.car.speed) > 100) {
             keys.space = true;
         }
@@ -630,30 +644,25 @@ class AICar {
         if (dist < 80) this.currentTarget = (this.currentTarget + 1) % this.trackPoints.length;
     }
 }
+
 // ============= IMAGE LOADER & CACHE =============
 const IMAGE_CACHE = {};
 let imagesLoaded = 0;
 const totalImages = Object.keys(CONFIG.cars).length;
 
 function preloadAssets(callback) {
-    console.log("Starting asset preload...");
-    
+    console.log('Starting asset preload...');
     Object.keys(CONFIG.cars).forEach(key => {
         const img = new Image();
-        img.src = `assets/${key}.png`; 
-        
+        img.src = `assets/${key}.png`;
         img.onload = () => {
             imagesLoaded++;
             IMAGE_CACHE[key] = img;
-            if (imagesLoaded === totalImages) {
-                console.log("All assets loaded successfully.");
-                callback();
-            }
+            if (imagesLoaded === totalImages) { console.log('All assets loaded.'); callback(); }
         };
-
         img.onerror = () => {
             console.error(`Failed to load asset: assets/${key}.png`);
-            IMAGE_CACHE[key] = null; 
+            IMAGE_CACHE[key] = null;
             imagesLoaded++;
             if (imagesLoaded === totalImages) callback();
         };
@@ -661,10 +670,237 @@ function preloadAssets(callback) {
 }
 
 // ============= GAME INITIALIZATION =============
-// This replaces your old 'window.onload' or automatic start logic
+// Bug fix #9: Wire up all UI buttons and only start the engine after assets load.
 preloadAssets(() => {
-    console.log("Neon Drift v3 Engine Initialized.");
-    
-    // Call your main game setup function here
-    // For example: initGame(); or startGame();
+    console.log('Neon Drift v3 Engine Initialized.');
+
+    const keys = { up: false, down: false, left: false, right: false, space: false, shoot: false, _shootHeld: false };
+
+    // Keyboard input
+    const KEY_MAP = {
+        ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+        Space: 'space', KeyF: 'shoot', KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right'
+    };
+    document.addEventListener('keydown', e => {
+        if (KEY_MAP[e.code]) { keys[KEY_MAP[e.code]] = true; e.preventDefault(); }
+    });
+    document.addEventListener('keyup', e => {
+        if (KEY_MAP[e.code]) keys[KEY_MAP[e.code]] = false;
+    });
+
+    // Touch controls
+    const touchMap = {
+        'touch-gas': 'up', 'touch-brake': 'down', 'touch-left': 'left',
+        'touch-right': 'right', 'touch-handbrake': 'space', 'touch-fire': 'shoot'
+    };
+    Object.entries(touchMap).forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('touchstart', e => { keys[key] = true; e.preventDefault(); }, { passive: false });
+        el.addEventListener('touchend', () => { keys[key] = false; });
+    });
+
+    // Difficulty buttons
+    document.querySelectorAll('.diff-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            CONFIG.difficulty = btn.dataset.diff;
+            gameState.difficulty = btn.dataset.diff;
+        });
+    });
+
+    // Car selection
+    document.querySelectorAll('.car-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.car-option').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            gameState.selectedCar = btn.dataset.car;
+        });
+    });
+
+    // Color swatches
+    document.querySelectorAll('.color-swatch').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.color-swatch').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            gameState.selectedColor = btn.dataset.color;
+        });
+    });
+    const customColorInput = document.getElementById('custom-color');
+    if (customColorInput) customColorInput.addEventListener('input', e => { gameState.selectedColor = e.target.value; });
+
+    // Screen helper
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        const el = document.getElementById(id);
+        if (el) el.classList.add('active');
+    }
+
+    let engineStarted = false;
+
+    // Pause / resume / quit
+    document.addEventListener('keydown', e => {
+        if (e.code === 'Escape' && gameState.screen === 'game') {
+            gameState.paused = !gameState.paused;
+            document.getElementById('pause-overlay')?.classList.toggle('hidden', !gameState.paused);
+        }
+    });
+    document.getElementById('resume-btn')?.addEventListener('click', () => {
+        gameState.paused = false;
+        document.getElementById('pause-overlay')?.classList.add('hidden');
+    });
+    document.getElementById('quit-btn')?.addEventListener('click', () => {
+        gameState.screen = 'start';
+        gameState.paused = false;
+        showScreen('start-screen');
+    });
+    document.getElementById('restart-btn')?.addEventListener('click', () => startSinglePlayer());
+    document.getElementById('menu-btn')?.addEventListener('click', () => showScreen('start-screen'));
+
+    // Single-player start
+    document.getElementById('singleplayer-btn')?.addEventListener('click', () => startSinglePlayer());
+
+    function startSinglePlayer() {
+        const carType = gameState.selectedCar;
+        const color1  = gameState.selectedColor;
+        const cfg     = CONFIG.cars[carType];
+        const color2  = cfg ? cfg.defaultColor2 : '#000000';
+
+        const trackData   = generateTrack();
+        const trackCenter = catmullRomSpline(trackData.points);
+        gameState.trackName = trackData.name;
+
+        const startPt    = trackCenter[0];
+        const startAngle = Math.atan2(
+            trackCenter[1].x - trackCenter[0].x,
+            -(trackCenter[1].y - trackCenter[0].y)
+        );
+
+        const playerCar = new Car(startPt.x, startPt.y, startAngle, carType, color1, color2);
+
+        const aiCarTypes = Object.keys(CONFIG.cars).filter(k => k !== carType);
+        const aiCars = [];
+        for (let i = 0; i < 4; i++) {
+            const offset = Math.floor((trackCenter.length / 5) * (i + 1));
+            const aiType = aiCarTypes[i % aiCarTypes.length];
+            const aiCfg  = CONFIG.cars[aiType];
+            aiCars.push(new AICar(
+                trackCenter[offset].x, trackCenter[offset].y, startAngle,
+                aiType, trackCenter, offset,
+                aiCfg.defaultColor1, aiCfg.defaultColor2
+            ));
+        }
+
+        // Expose state to engine3d / renderer
+        window.gameState           = window.gameState || {};
+        window.gameState.playerCar = playerCar;
+        window.gameState.aiCars    = aiCars;
+        window.projectiles = projectiles;
+        window.bullets     = bullets;
+
+        // Reset race counters
+        gameState.screen       = 'game';
+        gameState.raceStarted  = true;
+        gameState.raceFinished = false;
+        gameState.currentLap   = 1;
+        gameState.totalTime    = 0;
+        gameState.lapTimes     = [];
+        gameState.bestLap      = Infinity;
+        gameState.maxSpeed     = 0;
+        gameState.driftScore   = 0;
+        gameState.paused       = false;
+
+        showScreen('game-screen');
+        const trackNameEl = document.getElementById('track-name');
+        if (trackNameEl) trackNameEl.textContent = trackData.name;
+
+        // Bug fix #1: start engine render loop only once
+        if (!engineStarted) {
+            engineStarted = true;
+            if (window.startEngine3D) window.startEngine3D();
+        }
+
+        // Game logic update loop (separate from the 3D render loop)
+        let lastTime = null;
+        function gameLoop(ts) {
+            if (gameState.screen !== 'game') return;
+            requestAnimationFrame(gameLoop);
+            if (!lastTime) { lastTime = ts; return; }
+            const dt = Math.min((ts - lastTime) / 1000, 0.05);
+            lastTime = ts;
+
+            if (gameState.paused) return;
+
+            // Player update
+            playerCar.update(dt, keys);
+
+            // Weapon fire: trigger once per keypress, not while held
+            if (keys.shoot && !keys._shootHeld) {
+                const proj = playerCar.fireWeapon();
+                if (proj) projectiles.push(proj);
+            }
+            keys._shootHeld = keys.shoot;
+
+            // AI update
+            aiCars.forEach(ai => ai.update(dt));
+
+            // Projectile / bullet update & cleanup
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                projectiles[i].update(dt);
+                if (!projectiles[i].active) projectiles.splice(i, 1);
+            }
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                bullets[i].update(dt);
+                if (!bullets[i].active) bullets.splice(i, 1);
+            }
+
+            // Race timer
+            if (!gameState.raceFinished) gameState.totalTime += dt;
+
+            // HUD updates
+            const spd = Math.abs(playerCar.speed);
+            if (spd > gameState.maxSpeed) gameState.maxSpeed = spd;
+            const speedEl = document.getElementById('speed-number');
+            const gearEl  = document.getElementById('gear-indicator');
+            const timeEl  = document.getElementById('race-time');
+            const lapEl   = document.getElementById('lap-counter');
+            if (speedEl) speedEl.textContent = Math.round(spd);
+            if (gearEl)  gearEl.textContent  = playerCar.gear;
+            if (timeEl)  timeEl.textContent   = formatTime(gameState.totalTime);
+            if (lapEl)   lapEl.textContent    = gameState.currentLap + ' / ' + CONFIG.TOTAL_LAPS;
+
+            // Keep engine3d in sync
+            window.gameState.playerCar = playerCar;
+            window.gameState.aiCars    = aiCars;
+        }
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Multiplayer button
+    document.getElementById('multiplayer-btn')?.addEventListener('click', () => {
+        network.connect();
+        showScreen('lobby-screen');
+        const name = document.getElementById('player-name')?.value || 'Racer';
+        network.on('connected', () => {
+            network.joinRoom(name, gameState.selectedCar, gameState.selectedColor,
+                CONFIG.cars[gameState.selectedCar]?.defaultColor2 || '#000000');
+            const statusEl = document.getElementById('connection-status');
+            if (statusEl) statusEl.textContent = '✅ Connected';
+        });
+        network.on('disconnected', () => {
+            const statusEl = document.getElementById('connection-status');
+            if (statusEl) statusEl.textContent = '❌ Disconnected';
+        });
+    });
+    document.getElementById('lobby-back-btn')?.addEventListener('click', () => showScreen('start-screen'));
+    document.getElementById('ready-btn')?.addEventListener('click', () => network.toggleReady());
+    document.getElementById('start-race-btn')?.addEventListener('click', () => network.startRace());
 });
+
+function formatTime(seconds) {
+    const m  = Math.floor(seconds / 60);
+    const s  = Math.floor(seconds % 60);
+    const ms = Math.floor((seconds % 1) * 10);
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + '.' + ms;
+}

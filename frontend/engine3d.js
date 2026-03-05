@@ -124,4 +124,9 @@ function drawPolygon(ctx, x1, y1, w1, x2, y2, w2, color) {
     ctx.closePath(); ctx.fill();
 }
 
-render();
+// Bug fix #1: Do NOT call render() automatically on load.
+// The game loop must only start once the player presses Start and
+// preloadAssets() has completed. Call window.startEngine3D() from game.js.
+window.startEngine3D = function () {
+    render();
+};

@@ -152,7 +152,8 @@ wss.on('connection', (ws) => {
                 if (!room || room.hostId !== playerId) return;
                 let allReady = true;
                 room.players.forEach(p => { if (!p.ready) allReady = false; });
-                if (!allReady && room.players.size > 1) return;
+                // Bug fix #8: require host to also be ready, even in solo play
+                if (!allReady) return;
                 room.state = 'countdown';
                 room.raceStartTime = Date.now() + 4000;
                 room.powerupStates = [];
