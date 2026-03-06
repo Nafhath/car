@@ -5,8 +5,10 @@ const ASSETS = [
     './style.css',
     './game.js',
     './renderer.js',
+    './engine3d.js',
     './network.js',
     './icon-512.png',
+    './manifest.json',
 ];
 
 // Install — cache all game assets

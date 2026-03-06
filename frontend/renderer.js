@@ -54,7 +54,7 @@ function renderCars(playerCar, cameraX, cameraY, cameraZ) {
             const projected = project(carPos, cameraX, cameraY, cameraZ);
             
             // Calculate car size based on distance (scale factor)
-            const distance = Math.abs(carPos.z - cameraZ);
+            const distance = Math.max(1, Math.abs(carPos.z - cameraZ)); // clamp to avoid div/0
             const baseSize = 40; // Base car size at distance 1
             const scale = cameraDepth / distance;
             const carWidth = baseSize * scale * car.miniScale;
@@ -118,7 +118,7 @@ function renderProjectiles(cameraX, cameraY, cameraZ) {
         const projPos = { x: proj.x, y: proj.y, z: 0 };
         const projected = project(projPos, cameraX, cameraY, cameraZ);
         
-        const distance = Math.abs(projPos.z - cameraZ);
+        const distance = Math.max(1, Math.abs(projPos.z - cameraZ));
         const scale = cameraDepth / distance;
         const size = proj.radius * scale;
         
@@ -145,7 +145,7 @@ function renderBullets(cameraX, cameraY, cameraZ) {
         const bulletPos = { x: bullet.x, y: bullet.y, z: 0 };
         const projected = project(bulletPos, cameraX, cameraY, cameraZ);
         
-        const distance = Math.abs(bulletPos.z - cameraZ);
+        const distance = Math.max(1, Math.abs(bulletPos.z - cameraZ));
         const scale = cameraDepth / distance;
         const size = 3 * scale;
         

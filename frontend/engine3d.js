@@ -43,7 +43,8 @@ Object.keys(carModels).forEach(key => carModels[key].img.src = carModels[key].sr
 
 // --- 3D Projection Math ---
 function project(p, cameraX, cameraY, cameraZ) {
-    const scale = cameraDepth / (p.z - cameraZ);
+    const dz = p.z - cameraZ || 0.001; // avoid division by zero
+    const scale = cameraDepth / dz;
     return {
         x: Math.round((width / 2) + (scale * (p.x - cameraX) * width / 2)),
         y: Math.round((height / 2) - (scale * (p.y - cameraY) * height / 2)),
