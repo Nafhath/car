@@ -6,9 +6,23 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// --- Game Settings ---
-const width = 800;
-const height = 600;
+// --- Canvas Sizing: fill the game screen ---
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// --- Game Settings (dynamic) ---
+let width = canvas.width;
+let height = canvas.height;
+
+// Keep width/height in sync with canvas on resize
+window.addEventListener('resize', () => {
+    width = canvas.width;
+    height = canvas.height;
+});
 const roadWidth = 2000;
 const segmentLength = 200; 
 const cameraDepth = 0.8; 
@@ -114,7 +128,8 @@ function render() {
         ctx.drawImage(activeCar, (width/2) - carSize/2, height - carSize - 10, carSize, carSize);
     }
 
-    requestAnimationFrame(render);
+    // Only keep looping if game is active
+    if (window._engineRunning) requestAnimationFrame(render);
 }
 
 function drawPolygon(ctx, x1, y1, w1, x2, y2, w2, color) {
@@ -129,5 +144,11 @@ function drawPolygon(ctx, x1, y1, w1, x2, y2, w2, color) {
 // The game loop must only start once the player presses Start and
 // preloadAssets() has completed. Call window.startEngine3D() from game.js.
 window.startEngine3D = function () {
+    window._engineRunning = true;
+    resizeCanvas(); // make sure canvas is full size at start
     render();
+};
+
+window.stopEngine3D = function () {
+    window._engineRunning = false;
 };

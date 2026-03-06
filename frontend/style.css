@@ -398,6 +398,25 @@ body {
 }
 
 /* ========================================
+   GAME SCREEN & CANVAS
+   ======================================== */
+#game-screen {
+    display: block !important;
+    align-items: unset;
+    justify-content: unset;
+    background: #000;
+}
+
+#gameCanvas {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* ========================================
    SPEEDOMETER & HUD
    ======================================== */
 #hud {

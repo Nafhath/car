@@ -753,10 +753,16 @@ preloadAssets(() => {
     document.getElementById('quit-btn')?.addEventListener('click', () => {
         gameState.screen = 'start';
         gameState.paused = false;
+        if (window.stopEngine3D) window.stopEngine3D();
+        engineStarted = false;
         showScreen('start-screen');
     });
     document.getElementById('restart-btn')?.addEventListener('click', () => startSinglePlayer());
-    document.getElementById('menu-btn')?.addEventListener('click', () => showScreen('start-screen'));
+    document.getElementById('menu-btn')?.addEventListener('click', () => {
+        if (window.stopEngine3D) window.stopEngine3D();
+        engineStarted = false;
+        showScreen('start-screen');
+    });
 
     // Single-player start
     document.getElementById('singleplayer-btn')?.addEventListener('click', () => startSinglePlayer());
