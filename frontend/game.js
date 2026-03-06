@@ -291,6 +291,101 @@ function generatePitLane(trackCenter, trackWidth) {
     return { points: pitPoints, center, width: 25 };
 }
 
+function enforceTrackBounds(car, trackCenter, trackWidth, dt = 0.016) {
+    if (!car) return;
+    let minDist = Infinity, closestIdx = 0;
+    const sr = 60, n = trackCenter.length;
+    let ss = (car._lastTrackIdx ?? 0) - sr, se = (car._lastTrackIdx ?? 0) + sr;
+    if (car._lastTrackIdx == null) { ss = 0; se = n; }
+    for (let i = ss; i < se; i++) {
+        const idx = ((i % n) + n) % n;
+        const p = trackCenter[idx];
+        const dx = car.x - p.x, dy = car.y - p.y, d = dx * dx + dy * dy;
+        if (d < minDist) { minDist = d; closestIdx = idx; }
+    }
+    car._lastTrackIdx = closestIdx;
+    const dist = Math.sqrt(minDist);
+    const maxDist = trackWidth / 2 - (car.width || 24) / 2;
+    if (dist > maxDist) {
+        car._offTrackTimer = (car._offTrackTimer || 0) + dt;
+        const cp = trackCenter[closestIdx];
+        const dx = car.x - cp.x, dy = car.y - cp.y;
+        const len = dist || 1, nx = dx / len, ny = dy / len;
+        car.x = cp.x + nx * maxDist;
+        car.y = cp.y + ny * maxDist;
+        const dot = car.velocity.x * nx + car.velocity.y * ny;
+        if (dot > 0) {
+            car.velocity.x -= nx * dot * 1.5;
+            car.velocity.y -= ny * dot * 1.5;
+            car.speed *= 0.7;
+        }
+    } else {
+        car._offTrackTimer = 0;
+    }
+}
+
+function respawnCarToTrack(car, trackCenter) {
+    if (!car) return;
+    const idx = (car._lastTrackIdx ?? 0) + 20;
+    const p = trackCenter[idx % trackCenter.length];
+    const next = trackCenter[(idx + 1) % trackCenter.length];
+    const angle = Math.atan2(next.x - p.x, -(next.y - p.y));
+    car.x = p.x;
+    car.y = p.y;
+    car.angle = angle;
+    car.velocity.x = 0;
+    car.velocity.y = 0;
+    car.speed = 0;
+    car._offTrackTimer = 0;
+    car._lastStuckX = undefined;
+    car._lastStuckY = undefined;
+    car._stuckTimer = 0;
+    car.respawnShieldTimer = 2;
+    car.shielded = true;
+}
+
+function checkStuckAndRespawn(car, trackCenter, trackWidth, dt) {
+    if (!car) return;
+    const moved = Math.sqrt((car.x - (car._lastStuckX ?? car.x)) ** 2 + (car.y - (car._lastStuckY ?? car.y)) ** 2);
+    const threshold = 15;
+    if (moved < threshold) {
+        car._stuckTimer = (car._stuckTimer || 0) + dt;
+    } else {
+        car._stuckTimer = 0;
+    }
+    car._lastStuckX = car.x;
+    car._lastStuckY = car.y;
+    const offTrackTime = car._offTrackTimer || 0;
+    if (car._stuckTimer >= 2 || offTrackTime >= 2) {
+        respawnCarToTrack(car, trackCenter);
+    }
+}
+
+function checkCarCollisions(allCars) {
+    for (let i = 0; i < allCars.length; i++) {
+        for (let j = i + 1; j < allCars.length; j++) {
+            const a = allCars[i], b = allCars[j];
+            if (!a || !b) continue;
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const dist = Math.sqrt(dx * dx + dy * dy), md = 45;
+            if (dist < md && dist > 0) {
+                const nx = dx / dist, ny = dy / dist;
+                const ol = md - dist;
+                if (!a.shielded) { a.x -= nx * ol * 0.5; a.y -= ny * ol * 0.5; }
+                if (!b.shielded) { b.x += nx * ol * 0.5; b.y += ny * ol * 0.5; }
+                const rvx = a.velocity.x - b.velocity.x, rvy = a.velocity.y - b.velocity.y;
+                const rd = rvx * nx + rvy * ny;
+                if (rd > 0) {
+                    const mA = (a.config?.mass) || 1200, mB = (b.config?.mass) || 1200;
+                    const tm = mA + mB;
+                    if (!a.shielded) { a.velocity.x -= (2 * mB / tm) * rd * nx * 0.6; a.velocity.y -= (2 * mB / tm) * rd * ny * 0.6; }
+                    if (!b.shielded) { b.velocity.x += (2 * mA / tm) * rd * nx * 0.6; b.velocity.y += (2 * mA / tm) * rd * ny * 0.6; }
+                }
+            }
+        }
+    }
+}
+
 // ============= GAME STATE =============
 let gameState = {
     screen: 'start', selectedCar: 'bmw_m4', selectedColor: '#0066ff',
@@ -753,13 +848,13 @@ preloadAssets(() => {
     document.getElementById('quit-btn')?.addEventListener('click', () => {
         gameState.screen = 'start';
         gameState.paused = false;
-        if (window.stopEngine3D) window.stopEngine3D();
+        if (window.stopEngine2D) window.stopEngine2D();
         engineStarted = false;
         showScreen('start-screen');
     });
     document.getElementById('restart-btn')?.addEventListener('click', () => startSinglePlayer());
     document.getElementById('menu-btn')?.addEventListener('click', () => {
-        if (window.stopEngine3D) window.stopEngine3D();
+        if (window.stopEngine2D) window.stopEngine2D();
         engineStarted = false;
         showScreen('start-screen');
     });
@@ -768,6 +863,10 @@ preloadAssets(() => {
     document.getElementById('singleplayer-btn')?.addEventListener('click', () => startSinglePlayer());
 
     function startSinglePlayer() {
+        // Clear projectiles and bullets from previous race
+        projectiles.length = 0;
+        bullets.length = 0;
+
         const carType = gameState.selectedCar;
         const color1  = gameState.selectedColor;
         const cfg     = CONFIG.cars[carType];
@@ -775,6 +874,9 @@ preloadAssets(() => {
 
         const trackData   = generateTrack();
         const trackCenter = catmullRomSpline(trackData.points);
+        const halfWidth   = 70;
+        const { inner: trackInner, outer: trackOuter } = buildTrackEdges(trackCenter, halfWidth);
+        const trackWidth  = halfWidth * 2;
         gameState.trackName = trackData.name;
 
         const startPt    = trackCenter[0];
@@ -798,10 +900,14 @@ preloadAssets(() => {
             ));
         }
 
-        // Expose state to engine3d / renderer
+        // Expose state to 2D engine / renderer
         window.gameState           = window.gameState || {};
         window.gameState.playerCar = playerCar;
         window.gameState.aiCars    = aiCars;
+        window.gameState.trackCenter = trackCenter;
+        window.gameState.trackInner  = trackInner;
+        window.gameState.trackOuter  = trackOuter;
+        window.gameState.trackWidth  = trackWidth;
         window.projectiles = projectiles;
         window.bullets     = bullets;
 
@@ -816,15 +922,22 @@ preloadAssets(() => {
         gameState.maxSpeed     = 0;
         gameState.driftScore   = 0;
         gameState.paused       = false;
+        let lapStartTime       = performance.now();
+        const checkpoints      = [];
+        const cpI = Math.floor(trackCenter.length / 8);
+        for (let i = 0; i < 8; i++) checkpoints.push((i * cpI) % trackCenter.length);
+        let checkpointsHit     = new Set();
 
         showScreen('game-screen');
         const trackNameEl = document.getElementById('track-name');
         if (trackNameEl) trackNameEl.textContent = trackData.name;
 
-        // Bug fix #1: start engine render loop only once
+        // Start 2D top-down engine
         if (!engineStarted) {
             engineStarted = true;
-            if (window.startEngine3D) window.startEngine3D();
+            if (window.startEngine2D) window.startEngine2D(trackData.name, trackCenter, trackInner, trackOuter, trackWidth);
+        } else {
+            if (window.setEngine2DTrack) window.setEngine2DTrack(trackData.name, trackCenter, trackInner, trackOuter, trackWidth);
         }
 
         // Game logic update loop (separate from the 3D render loop)
@@ -851,6 +964,48 @@ preloadAssets(() => {
             // AI update
             aiCars.forEach(ai => ai.update(dt));
 
+            // Enforce track bounds
+            enforceTrackBounds(playerCar, trackCenter, trackWidth, dt);
+            aiCars.forEach(ai => enforceTrackBounds(ai.car, trackCenter, trackWidth, dt));
+
+            // Car collisions
+            checkCarCollisions([playerCar, ...aiCars.map(a => a.car)]);
+
+            // Stuck / off-track respawn (2 sec)
+            checkStuckAndRespawn(playerCar, trackCenter, trackWidth, dt);
+            aiCars.forEach(ai => checkStuckAndRespawn(ai.car, trackCenter, trackWidth, dt));
+
+            // Lap logic
+            if (!gameState.raceFinished) {
+            for (let i = 0; i < checkpoints.length; i++) {
+                const cp = trackCenter[checkpoints[i]];
+                const dx = playerCar.x - cp.x, dy = playerCar.y - cp.y;
+                if (Math.sqrt(dx * dx + dy * dy) < 100) checkpointsHit.add(i);
+            }
+            const finishPt = trackCenter[0];
+            const fd = Math.sqrt((playerCar.x - finishPt.x) ** 2 + (playerCar.y - finishPt.y) ** 2);
+            if (fd < 90 && checkpointsHit.size >= checkpoints.length - 1 && gameState.totalTime > 3) {
+                const lt = (performance.now() - lapStartTime) / 1000;
+                gameState.lapTimes.push(lt);
+                if (lt < gameState.bestLap) gameState.bestLap = lt;
+                if (gameState.currentLap >= CONFIG.TOTAL_LAPS) {
+                    gameState.raceFinished = true;
+                    setTimeout(() => {
+                        document.getElementById('final-time').textContent = formatTime(gameState.totalTime);
+                        document.getElementById('final-best-lap').textContent = formatTime(gameState.bestLap);
+                        document.getElementById('final-max-speed').textContent = Math.round(gameState.maxSpeed) + ' km/h';
+                        document.getElementById('final-drift-score').textContent = Math.floor(gameState.driftScore);
+                        document.getElementById('final-powerups').textContent = gameState.powerupsUsed;
+                        showScreen('finish-screen');
+                    }, 1500);
+                } else {
+                    gameState.currentLap++;
+                    checkpointsHit = new Set();
+                    lapStartTime = performance.now();
+                }
+            }
+            }
+
             // Projectile / bullet update & cleanup
             for (let i = projectiles.length - 1; i >= 0; i--) {
                 projectiles[i].update(dt);
@@ -876,7 +1031,7 @@ preloadAssets(() => {
             if (timeEl)  timeEl.textContent   = formatTime(gameState.totalTime);
             if (lapEl)   lapEl.textContent    = gameState.currentLap + ' / ' + CONFIG.TOTAL_LAPS;
 
-            // Keep engine3d in sync
+            // Keep engine2d in sync
             window.gameState.playerCar = playerCar;
             window.gameState.aiCars    = aiCars;
         }
