@@ -1,7 +1,8 @@
 /* ========================================
    NEON DRIFT v3 — Game Engine
-   15 Real-World Cars, Motorbikes, Weapons,
+   18 Real-World Cars, Motorbikes, Weapons,
    Health, Pit Stops, Difficulty, Procedural Tracks
+   OutRun-style pseudo-3D renderer (engine3d.js)
    ======================================== */
 
 // ============= CONFIGURATION =============
@@ -12,8 +13,8 @@ const CONFIG = {
     MAX_HEALTH: 100,
     MAX_LIVES: 3,
     WEAPON_COOLDOWN: 3,
-    BULLET_COOLDOWN: 0.2,      // machine gun speed
-    difficulty: 'medium',      // easy, medium, hard
+    BULLET_COOLDOWN: 0.2,
+    difficulty: 'medium',
     cars: {
         bmw_m4: {
             name: 'BMW M4', type: 'car', category: 'Sport',
@@ -144,76 +145,75 @@ const CONFIG = {
     }
 };
 
-// Difficulty presets
 const DIFFICULTY = {
-    easy: { aiSpeed: 0.55, aiLookahead: 12, aiReaction: 0.12, label: 'EASY' },
+    easy:   { aiSpeed: 0.55, aiLookahead: 12, aiReaction: 0.12, label: 'EASY' },
     medium: { aiSpeed: 0.75, aiLookahead: 18, aiReaction: 0.06, label: 'MEDIUM' },
-    hard: { aiSpeed: 0.95, aiLookahead: 25, aiReaction: 0.03, label: 'HARD' }
+    hard:   { aiSpeed: 0.95, aiLookahead: 25, aiReaction: 0.03, label: 'HARD' }
 };
 
 // ============= POWER-UP & WEAPON TYPES =============
 const POWERUP_TYPES = [
-    { id: 'speed', name: 'SPEED BOOST!', icon: '⚡', duration: 4, color: '#ffd700', isWeapon: false },
-    { id: 'shield', name: 'SHIELD!', icon: '🛡️', duration: 5, color: '#00f0ff', isWeapon: false },
-    { id: 'nitro', name: 'NITRO!', icon: '🔥', duration: 3, color: '#ff4444', isWeapon: false },
-    { id: 'grip', name: 'MEGA GRIP!', icon: '🏁', duration: 4, color: '#39ff14', isWeapon: false },
-    { id: 'mini', name: 'MINI SIZE!', icon: '🔮', duration: 5, color: '#b829ff', isWeapon: false },
-    { id: 'missile', name: 'MISSILE!', icon: '🚀', duration: 0, color: '#ff4444', isWeapon: true },
-    { id: 'oil', name: 'OIL SLICK!', icon: '🛢️', duration: 0, color: '#333333', isWeapon: true },
-    { id: 'emp', name: 'EMP BLAST!', icon: '💥', duration: 0, color: '#00f0ff', isWeapon: true },
+    { id: 'speed',   name: 'SPEED BOOST!', icon: '⚡',  duration: 4, color: '#ffd700', isWeapon: false },
+    { id: 'shield',  name: 'SHIELD!',      icon: '🛡️', duration: 5, color: '#00f0ff', isWeapon: false },
+    { id: 'nitro',   name: 'NITRO!',       icon: '🔥',  duration: 3, color: '#ff4444', isWeapon: false },
+    { id: 'grip',    name: 'MEGA GRIP!',   icon: '🏁',  duration: 4, color: '#39ff14', isWeapon: false },
+    { id: 'mini',    name: 'MINI SIZE!',   icon: '🔮',  duration: 5, color: '#b829ff', isWeapon: false },
+    { id: 'missile', name: 'MISSILE!',     icon: '🚀',  duration: 0, color: '#ff4444', isWeapon: true  },
+    { id: 'oil',     name: 'OIL SLICK!',   icon: '🛢️', duration: 0, color: '#333333', isWeapon: true  },
+    { id: 'emp',     name: 'EMP BLAST!',   icon: '💥',  duration: 0, color: '#00f0ff', isWeapon: true  },
 ];
 
 // ============= TRACK TEMPLATES =============
 const TRACK_TEMPLATES = [
     {
         name: 'City Circuit', scale: 1.4, points: [
-            { x: -600, y: 400 }, { x: -400, y: 420 }, { x: -200, y: 400 }, { x: 0, y: 380 }, { x: 200, y: 400 }, { x: 400, y: 420 }, { x: 600, y: 400 },
-            { x: 720, y: 350 }, { x: 800, y: 280 }, { x: 830, y: 180 }, { x: 810, y: 80 }, { x: 750, y: 0 }, { x: 700, y: -60 }, { x: 620, y: -80 },
-            { x: 500, y: -100 }, { x: 380, y: -140 }, { x: 280, y: -200 }, { x: 200, y: -280 }, { x: 120, y: -320 }, { x: 0, y: -340 },
-            { x: -120, y: -320 }, { x: -200, y: -260 }, { x: -300, y: -220 }, { x: -420, y: -200 }, { x: -520, y: -160 },
-            { x: -620, y: -80 }, { x: -700, y: 20 }, { x: -740, y: 120 }, { x: -730, y: 220 }, { x: -680, y: 320 }
+            {x:-600,y:400},{x:-400,y:420},{x:-200,y:400},{x:0,y:380},{x:200,y:400},{x:400,y:420},{x:600,y:400},
+            {x:720,y:350},{x:800,y:280},{x:830,y:180},{x:810,y:80},{x:750,y:0},{x:700,y:-60},{x:620,y:-80},
+            {x:500,y:-100},{x:380,y:-140},{x:280,y:-200},{x:200,y:-280},{x:120,y:-320},{x:0,y:-340},
+            {x:-120,y:-320},{x:-200,y:-260},{x:-300,y:-220},{x:-420,y:-200},{x:-520,y:-160},
+            {x:-620,y:-80},{x:-700,y:20},{x:-740,y:120},{x:-730,y:220},{x:-680,y:320}
         ]
     },
     {
         name: 'Mountain Pass', scale: 1.5, points: [
-            { x: -500, y: 500 }, { x: -300, y: 480 }, { x: -100, y: 420 }, { x: 100, y: 340 }, { x: 250, y: 240 }, { x: 350, y: 120 },
-            { x: 500, y: 60 }, { x: 650, y: 100 }, { x: 750, y: 200 }, { x: 800, y: 340 }, { x: 780, y: 460 }, { x: 700, y: 520 },
-            { x: 550, y: 500 }, { x: 400, y: 440 }, { x: 300, y: 340 }, { x: 250, y: 200 }, { x: 200, y: 80 }, { x: 100, y: -20 },
-            { x: -50, y: -80 }, { x: -200, y: -120 }, { x: -350, y: -160 }, { x: -500, y: -200 }, { x: -620, y: -160 },
-            { x: -700, y: -60 }, { x: -720, y: 80 }, { x: -700, y: 200 }, { x: -650, y: 340 }, { x: -580, y: 440 }
+            {x:-500,y:500},{x:-300,y:480},{x:-100,y:420},{x:100,y:340},{x:250,y:240},{x:350,y:120},
+            {x:500,y:60},{x:650,y:100},{x:750,y:200},{x:800,y:340},{x:780,y:460},{x:700,y:520},
+            {x:550,y:500},{x:400,y:440},{x:300,y:340},{x:250,y:200},{x:200,y:80},{x:100,y:-20},
+            {x:-50,y:-80},{x:-200,y:-120},{x:-350,y:-160},{x:-500,y:-200},{x:-620,y:-160},
+            {x:-700,y:-60},{x:-720,y:80},{x:-700,y:200},{x:-650,y:340},{x:-580,y:440}
         ]
     },
     {
         name: 'Coastal Road', scale: 1.6, points: [
-            { x: -700, y: 200 }, { x: -550, y: 280 }, { x: -380, y: 340 }, { x: -200, y: 360 }, { x: 0, y: 340 }, { x: 180, y: 280 },
-            { x: 340, y: 200 }, { x: 480, y: 100 }, { x: 580, y: -20 }, { x: 640, y: -160 }, { x: 660, y: -300 }, { x: 620, y: -420 },
-            { x: 520, y: -500 }, { x: 380, y: -520 }, { x: 220, y: -480 }, { x: 80, y: -400 }, { x: -40, y: -300 }, { x: -120, y: -180 },
-            { x: -220, y: -100 }, { x: -350, y: -60 }, { x: -480, y: -80 }, { x: -600, y: -140 }, { x: -700, y: -60 }, { x: -740, y: 60 }
+            {x:-700,y:200},{x:-550,y:280},{x:-380,y:340},{x:-200,y:360},{x:0,y:340},{x:180,y:280},
+            {x:340,y:200},{x:480,y:100},{x:580,y:-20},{x:640,y:-160},{x:660,y:-300},{x:620,y:-420},
+            {x:520,y:-500},{x:380,y:-520},{x:220,y:-480},{x:80,y:-400},{x:-40,y:-300},{x:-120,y:-180},
+            {x:-220,y:-100},{x:-350,y:-60},{x:-480,y:-80},{x:-600,y:-140},{x:-700,y:-60},{x:-740,y:60}
         ]
     },
     {
         name: 'Desert Loop', scale: 1.3, points: [
-            { x: -400, y: 350 }, { x: -200, y: 400 }, { x: 50, y: 420 }, { x: 300, y: 380 }, { x: 500, y: 300 }, { x: 650, y: 180 },
-            { x: 700, y: 20 }, { x: 680, y: -140 }, { x: 580, y: -260 }, { x: 420, y: -340 }, { x: 250, y: -360 }, { x: 80, y: -320 },
-            { x: -60, y: -240 }, { x: -150, y: -120 }, { x: -200, y: 0 }, { x: -280, y: 80 }, { x: -400, y: 100 }, { x: -520, y: 60 },
-            { x: -600, y: -40 }, { x: -640, y: -160 }, { x: -600, y: -280 }, { x: -500, y: -340 }, { x: -380, y: -320 }, { x: -300, y: -240 },
-            { x: -340, y: -120 }, { x: -420, y: 0 }, { x: -500, y: 120 }, { x: -520, y: 240 }
+            {x:-400,y:350},{x:-200,y:400},{x:50,y:420},{x:300,y:380},{x:500,y:300},{x:650,y:180},
+            {x:700,y:20},{x:680,y:-140},{x:580,y:-260},{x:420,y:-340},{x:250,y:-360},{x:80,y:-320},
+            {x:-60,y:-240},{x:-150,y:-120},{x:-200,y:0},{x:-280,y:80},{x:-400,y:100},{x:-520,y:60},
+            {x:-600,y:-40},{x:-640,y:-160},{x:-600,y:-280},{x:-500,y:-340},{x:-380,y:-320},{x:-300,y:-240},
+            {x:-340,y:-120},{x:-420,y:0},{x:-500,y:120},{x:-520,y:240}
         ]
     },
     {
         name: 'Forest Trail', scale: 1.5, points: [
-            { x: -500, y: 300 }, { x: -350, y: 350 }, { x: -180, y: 360 }, { x: 0, y: 320 }, { x: 140, y: 240 }, { x: 220, y: 120 },
-            { x: 340, y: 40 }, { x: 480, y: 0 }, { x: 600, y: 60 }, { x: 680, y: 160 }, { x: 700, y: 300 }, { x: 640, y: 420 },
-            { x: 500, y: 480 }, { x: 340, y: 460 }, { x: 200, y: 380 }, { x: 100, y: 260 }, { x: 50, y: 120 }, { x: 0, y: -20 },
-            { x: -80, y: -140 }, { x: -200, y: -220 }, { x: -360, y: -260 }, { x: -500, y: -240 }, { x: -600, y: -160 },
-            { x: -650, y: -40 }, { x: -640, y: 100 }, { x: -580, y: 220 }
+            {x:-500,y:300},{x:-350,y:350},{x:-180,y:360},{x:0,y:320},{x:140,y:240},{x:220,y:120},
+            {x:340,y:40},{x:480,y:0},{x:600,y:60},{x:680,y:160},{x:700,y:300},{x:640,y:420},
+            {x:500,y:480},{x:340,y:460},{x:200,y:380},{x:100,y:260},{x:50,y:120},{x:0,y:-20},
+            {x:-80,y:-140},{x:-200,y:-220},{x:-360,y:-260},{x:-500,y:-240},{x:-600,y:-160},
+            {x:-650,y:-40},{x:-640,y:100},{x:-580,y:220}
         ]
     },
     {
         name: 'Stadium Oval', scale: 1.2, points: [
-            { x: -500, y: 200 }, { x: -400, y: 300 }, { x: -250, y: 380 }, { x: -50, y: 420 }, { x: 150, y: 400 }, { x: 320, y: 340 },
-            { x: 460, y: 240 }, { x: 540, y: 120 }, { x: 560, y: -20 }, { x: 520, y: -160 }, { x: 420, y: -280 }, { x: 280, y: -360 },
-            { x: 100, y: -400 }, { x: -80, y: -380 }, { x: -250, y: -320 }, { x: -400, y: -220 }, { x: -500, y: -100 }, { x: -540, y: 40 }
+            {x:-500,y:200},{x:-400,y:300},{x:-250,y:380},{x:-50,y:420},{x:150,y:400},{x:320,y:340},
+            {x:460,y:240},{x:540,y:120},{x:560,y:-20},{x:520,y:-160},{x:420,y:-280},{x:280,y:-360},
+            {x:100,y:-400},{x:-80,y:-380},{x:-250,y:-320},{x:-400,y:-220},{x:-500,y:-100},{x:-540,y:40}
         ]
     }
 ];
@@ -233,74 +233,26 @@ function catmullRomSpline(points, numPerSeg = 25) {
         for (let t = 0; t < numPerSeg; t++) {
             const s = t / numPerSeg, s2 = s * s, s3 = s2 * s;
             result.push({
-                x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * s + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * s2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * s3),
-                y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * s + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * s2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * s3)
+                x: 0.5 * ((2*p1.x) + (-p0.x+p2.x)*s + (2*p0.x-5*p1.x+4*p2.x-p3.x)*s2 + (-p0.x+3*p1.x-3*p2.x+p3.x)*s3),
+                y: 0.5 * ((2*p1.y) + (-p0.y+p2.y)*s + (2*p0.y-5*p1.y+4*p2.y-p3.y)*s2 + (-p0.y+3*p1.y-3*p2.y+p3.y)*s3)
             });
         }
     }
     return result;
 }
 
-function buildTrackEdges(centerLine, halfWidth) {
-    const inner = [], outer = [], n = centerLine.length;
-    for (let i = 0; i < n; i++) {
-        const prev = centerLine[(i - 1 + n) % n], curr = centerLine[i], next = centerLine[(i + 1) % n];
-        const dx = next.x - prev.x, dy = next.y - prev.y;
-        const len = Math.sqrt(dx * dx + dy * dy) || 1;
-        const nx = -dy / len, ny = dx / len;
-        inner.push({ x: curr.x + nx * halfWidth, y: curr.y + ny * halfWidth });
-        outer.push({ x: curr.x - nx * halfWidth, y: curr.y - ny * halfWidth });
-    }
-    return { inner, outer };
-}
-
-function generateShortcuts(trackCenter, n) {
-    const shortcuts = [];
-    const segLen = Math.floor(n / 4);
-    for (let s = 0; s < 2; s++) {
-        const startIdx = Math.floor(segLen * (s + 1) + Math.random() * segLen * 0.3);
-        const endIdx = (startIdx + Math.floor(segLen * 0.5)) % n;
-        const sp = trackCenter[startIdx % n], ep = trackCenter[endIdx];
-        const mx = (sp.x + ep.x) / 2 + (Math.random() - 0.5) * 60;
-        const my = (sp.y + ep.y) / 2 + (Math.random() - 0.5) * 60;
-        shortcuts.push({ entry: sp, mid: { x: mx, y: my }, exit: ep, startIdx: startIdx % n, endIdx, width: 30 });
-    }
-    return shortcuts;
-}
-
-function generatePitLane(trackCenter, trackWidth) {
-    const n = trackCenter.length;
-    const pitStart = Math.floor(n * 0.95);
-    const pitEnd = Math.floor(n * 0.08);
-    const pitPoints = [];
-    for (let i = pitStart; i < n; i++) {
-        const p = trackCenter[i], prev = trackCenter[(i - 1 + n) % n], next = trackCenter[(i + 1) % n];
-        const dx = next.x - prev.x, dy = next.y - prev.y, len = Math.sqrt(dx * dx + dy * dy) || 1;
-        const nx = -dy / len, ny = dx / len;
-        pitPoints.push({ x: p.x + nx * (trackWidth + 30), y: p.y + ny * (trackWidth + 30) });
-    }
-    for (let i = 0; i <= pitEnd; i++) {
-        const p = trackCenter[i], prev = trackCenter[(i - 1 + n) % n], next = trackCenter[(i + 1) % n];
-        const dx = next.x - prev.x, dy = next.y - prev.y, len = Math.sqrt(dx * dx + dy * dy) || 1;
-        const nx = -dy / len, ny = dx / len;
-        pitPoints.push({ x: p.x + nx * (trackWidth + 30), y: p.y + ny * (trackWidth + 30) });
-    }
-    const center = { x: 0, y: 0 };
-    pitPoints.forEach(p => { center.x += p.x; center.y += p.y; });
-    center.x /= pitPoints.length; center.y /= pitPoints.length;
-    return { points: pitPoints, center, width: 25 };
-}
-
 function enforceTrackBounds(car, trackCenter, trackWidth, dt = 0.016) {
     if (!car) return;
     let minDist = Infinity, closestIdx = 0;
     const sr = 60, n = trackCenter.length;
-    let ss = (car._lastTrackIdx ?? 0) - sr, se = (car._lastTrackIdx ?? 0) + sr;
+    let ss = (car._lastTrackIdx ?? 0) - sr;
+    let se = (car._lastTrackIdx ?? 0) + sr;
     if (car._lastTrackIdx == null) { ss = 0; se = n; }
     for (let i = ss; i < se; i++) {
         const idx = ((i % n) + n) % n;
         const p = trackCenter[idx];
-        const dx = car.x - p.x, dy = car.y - p.y, d = dx * dx + dy * dy;
+        const dx = car.x - p.x, dy = car.y - p.y;
+        const d = dx * dx + dy * dy;
         if (d < minDist) { minDist = d; closestIdx = idx; }
     }
     car._lastTrackIdx = closestIdx;
@@ -326,37 +278,43 @@ function enforceTrackBounds(car, trackCenter, trackWidth, dt = 0.016) {
 
 function respawnCarToTrack(car, trackCenter) {
     if (!car) return;
-    const idx = (car._lastTrackIdx ?? 0) + 20;
-    const p = trackCenter[idx % trackCenter.length];
+    const idx = ((car._lastTrackIdx ?? 0) + 20) % trackCenter.length;
+    const p    = trackCenter[idx];
     const next = trackCenter[(idx + 1) % trackCenter.length];
-    const angle = Math.atan2(next.x - p.x, -(next.y - p.y));
     car.x = p.x;
     car.y = p.y;
-    car.angle = angle;
-    car.velocity.x = 0;
-    car.velocity.y = 0;
+    car.angle = Math.atan2(next.x - p.x, -(next.y - p.y));
+    car.velocity = { x: 0, y: 0, z: 0 };
     car.speed = 0;
     car._offTrackTimer = 0;
+    car._stuckTimer = 0;
     car._lastStuckX = undefined;
     car._lastStuckY = undefined;
-    car._stuckTimer = 0;
     car.respawnShieldTimer = 2;
     car.shielded = true;
 }
 
 function checkStuckAndRespawn(car, trackCenter, trackWidth, dt) {
     if (!car) return;
-    const moved = Math.sqrt((car.x - (car._lastStuckX ?? car.x)) ** 2 + (car.y - (car._lastStuckY ?? car.y)) ** 2);
-    const threshold = 15;
-    if (moved < threshold) {
+    
+    // Check if car has moved significantly (more than 5 pixels in last update)
+    const moved = Math.sqrt(
+        (car.x - (car._lastStuckX ?? car.x)) ** 2 +
+        (car.y - (car._lastStuckY ?? car.y)) ** 2
+    );
+    
+    // If speed is very low and hasn't moved much, increment stuck timer
+    if (Math.abs(car.speed) < 20 && moved < 2) {
         car._stuckTimer = (car._stuckTimer || 0) + dt;
     } else {
         car._stuckTimer = 0;
     }
+    
     car._lastStuckX = car.x;
     car._lastStuckY = car.y;
-    const offTrackTime = car._offTrackTimer || 0;
-    if (car._stuckTimer >= 2 || offTrackTime >= 2) {
+    
+    // Respawn only if stuck for 5 seconds
+    if (car._stuckTimer >= 5) {
         respawnCarToTrack(car, trackCenter);
     }
 }
@@ -376,14 +334,29 @@ function checkCarCollisions(allCars) {
                 const rvx = a.velocity.x - b.velocity.x, rvy = a.velocity.y - b.velocity.y;
                 const rd = rvx * nx + rvy * ny;
                 if (rd > 0) {
-                    const mA = (a.config?.mass) || 1200, mB = (b.config?.mass) || 1200;
+                    const mA = a.config?.mass || 1200, mB = b.config?.mass || 1200;
                     const tm = mA + mB;
-                    if (!a.shielded) { a.velocity.x -= (2 * mB / tm) * rd * nx * 0.6; a.velocity.y -= (2 * mB / tm) * rd * ny * 0.6; }
-                    if (!b.shielded) { b.velocity.x += (2 * mA / tm) * rd * nx * 0.6; b.velocity.y += (2 * mA / tm) * rd * ny * 0.6; }
+                    if (!a.shielded) { a.velocity.x -= (2*mB/tm)*rd*nx*0.6; a.velocity.y -= (2*mB/tm)*rd*ny*0.6; }
+                    if (!b.shielded) { b.velocity.x += (2*mA/tm)*rd*nx*0.6; b.velocity.y += (2*mA/tm)*rd*ny*0.6; }
                 }
             }
         }
     }
+}
+
+function buildTrackEdges(centerLine, halfWidth) {
+    const inner = [], outer = [], n = centerLine.length;
+    for (let i = 0; i < n; i++) {
+        const prev = centerLine[(i - 1 + n) % n];
+        const curr = centerLine[i];
+        const next = centerLine[(i + 1) % n];
+        const dx = next.x - prev.x, dy = next.y - prev.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = -dy / len, ny = dx / len;
+        inner.push({ x: curr.x + nx * halfWidth, y: curr.y + ny * halfWidth });
+        outer.push({ x: curr.x - nx * halfWidth, y: curr.y - ny * halfWidth });
+    }
+    return { inner, outer };
 }
 
 // ============= GAME STATE =============
@@ -418,8 +391,8 @@ class Projectile {
         this.x = x; this.y = y; this.angle = angle;
         this.type = type; this.ownerId = ownerId;
         this.speed = type === 'missile' ? 600 : 0;
-        this.life = type === 'missile' ? 3 : (type === 'oil' ? 12 : 0);
-        this.radius = type === 'missile' ? 8 : (type === 'oil' ? 20 : 60);
+        this.life  = type === 'missile' ? 3 : (type === 'oil' ? 12 : 0);
+        this.radius= type === 'missile' ? 8 : (type === 'oil' ? 20 : 60);
         this.active = true;
         if (type === 'emp') { this.life = 0.5; this.radius = 120; }
     }
@@ -447,29 +420,25 @@ class Car {
         this.headlightFlicker = 1; this.engineRPM = 800; this.gear = 1;
         this.slipAngle = 0; this.drifting = false;
         this.width = this.config.width; this.height = this.config.height;
-        // Power-up / weapon state
         this.activePowerup = null; this.powerupTimer = 0; this.powerupDuration = 0;
         this.heldWeapon = null; this.weaponCooldown = 0;
         this.shielded = false; this.miniScale = 1;
         this.speedMultiplier = 1; this.gripMultiplier = 1;
         this.visualWheelAngle = 0;
-        // Health & pit
         this.health = CONFIG.MAX_HEALTH;
-        this.lives = CONFIG.MAX_LIVES;
+        this.lives  = CONFIG.MAX_LIVES;
         this.inPit = false; this.pitTimer = 0;
         this.stunned = false; this.stunTimer = 0;
         this.oilSlow = false; this.oilTimer = 0;
-        // Machine gun
         this.bulletCooldown = 0;
-        // Damage visual
         this.damageFlash = 0;
         this.sparks = [];
-        // Bug fix #4: separate respawn invulnerability timer
         this.respawnShieldTimer = 0;
+        // OutRun track position (used by engine3d.js to place sprite on road)
+        this._trackPos = 0;
     }
 
     update(dt, keys) {
-        // Stun check
         if (this.stunned) {
             this.stunTimer -= dt;
             if (this.stunTimer <= 0) this.stunned = false;
@@ -480,43 +449,43 @@ class Car {
         }
 
         const cfg = this.config;
-        this.throttle = keys.up ? 1 : 0;
-        this.brake = keys.down ? 1 : 0;
+        this.throttle  = keys.up    ? 1 : 0;
+        this.brake     = keys.down  ? 1 : 0;
         this.handbrake = keys.space;
 
         let steerInput = 0;
-        if (keys.left) steerInput = -1;
-        if (keys.right) steerInput = 1;
+        if (keys.left)  steerInput = -1;
+        if (keys.right) steerInput =  1;
 
         let spdMul = this.speedMultiplier;
         if (this.oilSlow) { spdMul *= 0.5; this.oilTimer -= dt; if (this.oilTimer <= 0) this.oilSlow = false; }
 
-        const speedFactor = 1 - (Math.abs(this.speed) / (cfg.maxSpeed * spdMul)) * 0.6;
-        const targetSteer = steerInput * cfg.turnSpeed * speedFactor;
-        this.steerAngle += (targetSteer - this.steerAngle) * 8 * dt;
+        const speedFactor  = 1 - (Math.abs(this.speed) / (cfg.maxSpeed * spdMul)) * 0.6;
+        const targetSteer  = steerInput * cfg.turnSpeed * speedFactor;
+        this.steerAngle   += (targetSteer - this.steerAngle) * 8 * dt;
         this.visualWheelAngle += (steerInput * 0.5 - this.visualWheelAngle) * 10 * dt;
 
         let engineForce = this.throttle > 0 ? cfg.acceleration * this.throttle : 0;
-        let brakeForce = this.brake > 0 ? cfg.braking * this.brake : 0;
+        let brakeForce  = this.brake    > 0 ? cfg.braking      * this.brake    : 0;
 
-        const forwardX = Math.sin(this.angle), forwardY = -Math.cos(this.angle);
+        const forwardX     = Math.sin(this.angle), forwardY = -Math.cos(this.angle);
         const forwardSpeed = this.velocity.x * forwardX + this.velocity.y * forwardY;
         this.speed = forwardSpeed;
 
-        const rightX = Math.cos(this.angle), rightY = Math.sin(this.angle);
+        const rightX       = Math.cos(this.angle),  rightY  =  Math.sin(this.angle);
         const lateralSpeed = this.velocity.x * rightX + this.velocity.y * rightY;
 
         this.slipAngle = Math.abs(lateralSpeed) > 0.5 ? Math.atan2(Math.abs(lateralSpeed), Math.abs(forwardSpeed)) : 0;
-        this.drifting = this.slipAngle > 0.2 && Math.abs(this.speed) > 50;
+        this.drifting  = this.slipAngle > 0.2 && Math.abs(this.speed) > 50;
 
         let grip = cfg.grip * this.gripMultiplier;
-        if (this.handbrake) grip = cfg.driftGrip * 0.6;
+        if (this.handbrake)    grip = cfg.driftGrip * 0.6;
         else if (this.drifting) grip = cfg.driftGrip;
 
-        if (Math.abs(this.speed) > 5) { this.angle += this.steerAngle * (this.speed / 200) * dt; }
+        if (Math.abs(this.speed) > 5) this.angle += this.steerAngle * (this.speed / 200) * dt;
 
         let accelForward = engineForce;
-        if (this.brake > 0 && forwardSpeed > 10) accelForward -= brakeForce;
+        if (this.brake > 0 && forwardSpeed > 10)  accelForward -= brakeForce;
         else if (this.brake > 0 && forwardSpeed <= 10) accelForward = -cfg.acceleration * 0.4 * this.brake;
 
         accelForward -= cfg.dragCoeff * forwardSpeed * Math.abs(forwardSpeed) * 0.005;
@@ -545,19 +514,18 @@ class Car {
 
         const speedRatio = Math.abs(this.speed) / cfg.maxSpeed;
         this.engineRPM = 800 + speedRatio * 7200;
-        if (speedRatio < 0.15) this.gear = 1;
-        else if (speedRatio < 0.3) this.gear = 2;
-        else if (speedRatio < 0.5) this.gear = 3;
-        else if (speedRatio < 0.7) this.gear = 4;
+        if      (speedRatio < 0.15) this.gear = 1;
+        else if (speedRatio < 0.3)  this.gear = 2;
+        else if (speedRatio < 0.5)  this.gear = 3;
+        else if (speedRatio < 0.7)  this.gear = 4;
         else if (speedRatio < 0.85) this.gear = 5;
-        else this.gear = 6;
+        else                         this.gear = 6;
 
-        // Tire marks
         if (this.drifting && Math.abs(this.speed) > 40) {
             const sa = Math.min(this.slipAngle * 2, 1);
             this.tireMarks.push(
-                { x: this.x - forwardX * this.height * 0.35 + rightX * this.width * 0.35, y: this.y - forwardY * this.height * 0.35 + rightY * this.width * 0.35, alpha: sa },
-                { x: this.x - forwardX * this.height * 0.35 - rightX * this.width * 0.35, y: this.y - forwardY * this.height * 0.35 - rightY * this.width * 0.35, alpha: sa }
+                { x: this.x - forwardX*this.height*0.35 + rightX*this.width*0.35, y: this.y - forwardY*this.height*0.35 + rightY*this.width*0.35, alpha: sa },
+                { x: this.x - forwardX*this.height*0.35 - rightX*this.width*0.35, y: this.y - forwardY*this.height*0.35 - rightY*this.width*0.35, alpha: sa }
             );
         }
         if (this.tireMarks.length > 2000) this.tireMarks = this.tireMarks.slice(-1500);
@@ -565,59 +533,47 @@ class Car {
         this.updateParticles(dt);
         this.headlightFlicker = 0.95 + Math.random() * 0.05;
 
-        // Power-up timer
         if (this.activePowerup) {
             this.powerupTimer -= dt;
             if (this.powerupTimer <= 0) this.clearPowerup();
         }
-        // Bug fix #4: tick respawn invulnerability separately from powerupTimer
         if (this.respawnShieldTimer > 0) {
             this.respawnShieldTimer -= dt;
             this.shielded = true;
             if (this.respawnShieldTimer <= 0) {
                 this.respawnShieldTimer = 0;
-                // Only drop shield if no shield powerup is active
-                if (!this.activePowerup || this.activePowerup.id !== 'shield') {
-                    this.shielded = false;
-                }
+                if (!this.activePowerup || this.activePowerup.id !== 'shield') this.shielded = false;
             }
         }
-        // Weapon cooldown
-        if (this.weaponCooldown > 0) this.weaponCooldown -= dt;
-        // Machine gun cooldown
-        if (this.bulletCooldown > 0) this.bulletCooldown -= dt;
-        // Damage flash
-        if (this.damageFlash > 0) this.damageFlash -= dt;
-        // Sparks
-        this.sparks = this.sparks.filter(s => { s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt; return s.life > 0; });
+        if (this.weaponCooldown  > 0) this.weaponCooldown  -= dt;
+        if (this.bulletCooldown  > 0) this.bulletCooldown  -= dt;
+        if (this.damageFlash     > 0) this.damageFlash     -= dt;
+        this.sparks = this.sparks.filter(s => { s.x += s.vx*dt; s.y += s.vy*dt; s.life -= dt; return s.life > 0; });
 
-        // Auto-shoot if key is held
-        if (keys.shoot && this.bulletCooldown <= 0) {
-            this.shootBullet();
-        }
+        if (keys.shoot && this.bulletCooldown <= 0) this.shootBullet();
     }
 
     shootBullet() {
         this.bulletCooldown = CONFIG.BULLET_COOLDOWN;
         const fwd = { x: Math.sin(this.angle), y: -Math.cos(this.angle) };
-        bullets.push(new Bullet(this.x + fwd.x * this.height * 0.6, this.y + fwd.y * this.height * 0.6, this.angle, this));
+        bullets.push(new Bullet(this.x + fwd.x*this.height*0.6, this.y + fwd.y*this.height*0.6, this.angle, this));
     }
 
     updateParticles(dt) {
-        const forwardX = Math.sin(this.angle), forwardY = -Math.cos(this.angle);
+        const fx = Math.sin(this.angle), fy = -Math.cos(this.angle);
         if (this.throttle > 0 || this.drifting) {
             for (let i = 0; i < 2; i++) {
                 this.particles.push({
-                    x: this.x - forwardX * this.height * 0.5 + (Math.random() - 0.5) * 6,
-                    y: this.y - forwardY * this.height * 0.5 + (Math.random() - 0.5) * 6,
-                    vx: -forwardX * (20 + Math.random() * 30) + (Math.random() - 0.5) * 15,
-                    vy: -forwardY * (20 + Math.random() * 30) + (Math.random() - 0.5) * 15,
-                    life: 1, maxLife: 0.5 + Math.random() * 0.5, size: 2 + Math.random() * 3
+                    x: this.x - fx*this.height*0.5 + (Math.random()-0.5)*6,
+                    y: this.y - fy*this.height*0.5 + (Math.random()-0.5)*6,
+                    vx: -fx*(20+Math.random()*30)+(Math.random()-0.5)*15,
+                    vy: -fy*(20+Math.random()*30)+(Math.random()-0.5)*15,
+                    life: 1, maxLife: 0.5+Math.random()*0.5, size: 2+Math.random()*3
                 });
             }
         }
         this.particles = this.particles.filter(p => {
-            p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt / p.maxLife; p.size *= 0.99;
+            p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt/p.maxLife; p.size *= 0.99;
             return p.life > 0;
         });
     }
@@ -627,49 +583,37 @@ class Car {
         this.health = Math.max(0, this.health - amount);
         this.damageFlash = 0.5;
         for (let i = 0; i < 10; i++) {
-            this.sparks.push({
-                x: this.x, y: this.y,
-                vx: (Math.random() - 0.5) * 200, vy: (Math.random() - 0.5) * 200,
-                life: 0.3 + Math.random() * 0.3
-            });
+            this.sparks.push({ x: this.x, y: this.y,
+                vx: (Math.random()-0.5)*200, vy: (Math.random()-0.5)*200,
+                life: 0.3+Math.random()*0.3 });
         }
-        if (this.health <= 0 && this.lives > 0) {
-            this.respawn();
-        }
+        if (this.health <= 0 && this.lives > 0) this.respawn();
     }
 
     respawn() {
         this.lives--;
         if (this.lives > 0) {
             this.health = CONFIG.MAX_HEALTH;
-            this.speed = 0;
-            // Bug fix #6: preserve velocity.z so 3D renderer never sees undefined
+            this.speed  = 0;
             this.velocity = { x: 0, y: 0, z: 0 };
-            // Bug fix #4: use dedicated timer so picking up a powerup during
-            // the invulnerability window does NOT cancel the respawn shield.
             this.respawnShieldTimer = 2;
         }
     }
 
     applyPowerup(type) {
-        if (type.isWeapon) {
-            this.heldWeapon = type;
-            return;
-        }
-        this.activePowerup = type;
-        this.powerupTimer = type.duration;
+        if (type.isWeapon) { this.heldWeapon = type; return; }
+        this.activePowerup   = type;
+        this.powerupTimer    = type.duration;
         this.powerupDuration = type.duration;
         this.speedMultiplier = 1; this.gripMultiplier = 1;
-        // Bug fix #4: don't wipe shield if respawn timer is still running
         if (this.respawnShieldTimer <= 0) this.shielded = false;
         this.miniScale = 1;
-
         switch (type.id) {
-            case 'speed': this.speedMultiplier = 1.35; break;
-            case 'nitro': this.speedMultiplier = 1.5; break;
-            case 'shield': this.shielded = true; break;
-            case 'grip': this.gripMultiplier = 1.6; break;
-            case 'mini': this.miniScale = 0.7; break;
+            case 'speed':  this.speedMultiplier = 1.35; break;
+            case 'nitro':  this.speedMultiplier = 1.5;  break;
+            case 'shield': this.shielded = true;        break;
+            case 'grip':   this.gripMultiplier = 1.6;   break;
+            case 'mini':   this.miniScale = 0.7;        break;
         }
     }
 
@@ -679,20 +623,15 @@ class Car {
         this.heldWeapon = null;
         this.weaponCooldown = CONFIG.WEAPON_COOLDOWN;
         const fwd = { x: Math.sin(this.angle), y: -Math.cos(this.angle) };
-        if (w.id === 'missile') {
-            return new Projectile(this.x + fwd.x * this.height * 0.6, this.y + fwd.y * this.height * 0.6, this.angle, 'missile', this);
-        } else if (w.id === 'oil') {
-            return new Projectile(this.x - fwd.x * this.height * 0.6, this.y - fwd.y * this.height * 0.6, this.angle, 'oil', this);
-        } else if (w.id === 'emp') {
-            return new Projectile(this.x, this.y, this.angle, 'emp', this);
-        }
+        if (w.id === 'missile') return new Projectile(this.x+fwd.x*this.height*0.6, this.y+fwd.y*this.height*0.6, this.angle, 'missile', this);
+        if (w.id === 'oil')     return new Projectile(this.x-fwd.x*this.height*0.6, this.y-fwd.y*this.height*0.6, this.angle, 'oil',     this);
+        if (w.id === 'emp')     return new Projectile(this.x, this.y, this.angle, 'emp', this);
         return null;
     }
 
     clearPowerup() {
         this.activePowerup = null; this.powerupTimer = 0;
         this.speedMultiplier = 1; this.gripMultiplier = 1;
-        // Only clear shield if no respawn window is active
         if (this.respawnShieldTimer <= 0) this.shielded = false;
         this.miniScale = 1;
     }
@@ -702,45 +641,73 @@ class Car {
 class AICar {
     constructor(x, y, angle, carType, trackPoints, offset, color1, color2) {
         this.car = new Car(x, y, angle, carType, color1, color2);
-        this.trackPoints = trackPoints;
-        this.currentTarget = offset || 0;
+        this.trackPoints    = trackPoints;
+        this.currentTarget  = offset || 0;
         const diff = DIFFICULTY[CONFIG.difficulty] || DIFFICULTY.medium;
-        // Bug fix #7: clamp speedVariation so it never goes zero or negative
-        this.speedVariation = Math.max(0.1, diff.aiSpeed + (Math.random() - 0.5) * 0.1);
-        this.lineOffset = (Math.random() - 0.5) * 40;
-        this.lookahead = diff.aiLookahead + Math.floor(Math.random() * 6);
-        this.reactionDelay = diff.aiReaction;
-        this.overtakeTimer = 0;
+        this.speedVariation = Math.max(0.1, diff.aiSpeed + (Math.random()-0.5)*0.1);
+        this.lineOffset     = (Math.random()-0.5) * 40;
+        this.lookahead      = diff.aiLookahead + Math.floor(Math.random()*6);
+        this.reactionDelay  = diff.aiReaction;
+        this.overtakeTimer  = 0;
     }
     update(dt) {
+        // 1. Get current track target with offset
         const target = this.trackPoints[this.currentTarget];
-        const dx = target.x + this.lineOffset - this.car.x;
-        const dy = target.y + this.lineOffset - this.car.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // 2. Smoothly steer towards the target
+        const dx = target.x - this.car.x;
+        const dy = target.y - this.car.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        
+        // Target angle calculation
         const targetAngle = Math.atan2(dx, -dy);
         let angleDiff = targetAngle - this.car.angle;
-        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        while (angleDiff >  Math.PI) angleDiff -= Math.PI*2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI*2;
 
-        const keys = { up: true, down: false, left: angleDiff < -this.reactionDelay, right: angleDiff > this.reactionDelay, space: false };
+        const keys = { 
+            up: true, 
+            down: false, 
+            left: angleDiff < -0.05, 
+            right: angleDiff > 0.05, 
+            space: false, 
+            shoot: false 
+        };
 
-        const ft = this.trackPoints[(this.currentTarget + this.lookahead) % this.trackPoints.length];
+        // 3. Look ahead for corners and adjust speed
+        const lookAheadIndex = (this.currentTarget + this.lookahead) % this.trackPoints.length;
+        const ft = this.trackPoints[lookAheadIndex];
         let fa = Math.atan2(ft.x - this.car.x, -(ft.y - this.car.y)) - this.car.angle;
-        while (fa > Math.PI) fa -= Math.PI * 2;
-        while (fa < -Math.PI) fa += Math.PI * 2;
-        if (Math.abs(fa) > 0.5 && Math.abs(this.car.speed) > 120) { keys.up = false; keys.down = true; }
-        if (Math.abs(this.car.speed) > this.car.config.maxSpeed * this.speedVariation) keys.up = false;
+        while (fa >  Math.PI) fa -= Math.PI*2;
+        while (fa < -Math.PI) fa += Math.PI*2;
 
-        if (CONFIG.difficulty === 'hard' && Math.abs(fa) > 0.8 && Math.abs(this.car.speed) > 100) {
-            keys.space = true;
+        // Slow down if there's a sharp turn ahead
+        if (Math.abs(fa) > 0.4) {
+            keys.up = false;
+            if (Math.abs(this.car.speed) > 100) keys.down = true;
+        }
+
+        // Apply speed variation and max speed limit
+        const maxAllowedSpeed = this.car.config.maxSpeed * this.speedVariation;
+        if (Math.abs(this.car.speed) > maxAllowedSpeed) {
+            keys.up = false;
+        }
+
+        // Small chance to use weapon if player is nearby
+        if (Math.random() < 0.01 && !this.car.heldWeapon && !this.car.weaponCooldown) {
+            // AI firing logic could be added here
         }
 
         this.car.update(dt, keys);
-        if (dist < 80) this.currentTarget = (this.currentTarget + 1) % this.trackPoints.length;
+
+        // Move to next target point when close enough
+        if (dist < 100) {
+            this.currentTarget = (this.currentTarget + 1) % this.trackPoints.length;
+        }
     }
 }
 
-// ============= IMAGE LOADER & CACHE =============
+// ============= IMAGE LOADER =============
 const IMAGE_CACHE = {};
 let imagesLoaded = 0;
 const totalImages = Object.keys(CONFIG.cars).length;
@@ -765,25 +732,18 @@ function preloadAssets(callback) {
 }
 
 // ============= GAME INITIALIZATION =============
-// Bug fix #9: Wire up all UI buttons and only start the engine after assets load.
 preloadAssets(() => {
     console.log('Neon Drift v3 Engine Initialized.');
 
     const keys = { up: false, down: false, left: false, right: false, space: false, shoot: false, _shootHeld: false };
 
-    // Keyboard input
     const KEY_MAP = {
         ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
         Space: 'space', KeyF: 'shoot', KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right'
     };
-    document.addEventListener('keydown', e => {
-        if (KEY_MAP[e.code]) { keys[KEY_MAP[e.code]] = true; e.preventDefault(); }
-    });
-    document.addEventListener('keyup', e => {
-        if (KEY_MAP[e.code]) keys[KEY_MAP[e.code]] = false;
-    });
+    document.addEventListener('keydown', e => { if (KEY_MAP[e.code]) { keys[KEY_MAP[e.code]] = true; e.preventDefault(); } });
+    document.addEventListener('keyup',   e => { if (KEY_MAP[e.code]) keys[KEY_MAP[e.code]] = false; });
 
-    // Touch controls
     const touchMap = {
         'touch-gas': 'up', 'touch-brake': 'down', 'touch-left': 'left',
         'touch-right': 'right', 'touch-handbrake': 'space', 'touch-fire': 'shoot'
@@ -792,10 +752,9 @@ preloadAssets(() => {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('touchstart', e => { keys[key] = true; e.preventDefault(); }, { passive: false });
-        el.addEventListener('touchend', () => { keys[key] = false; });
+        el.addEventListener('touchend',   () => { keys[key] = false; });
     });
 
-    // Difficulty buttons
     document.querySelectorAll('.diff-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('selected'));
@@ -805,7 +764,6 @@ preloadAssets(() => {
         });
     });
 
-    // Car selection
     document.querySelectorAll('.car-option').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.car-option').forEach(b => b.classList.remove('selected'));
@@ -814,7 +772,6 @@ preloadAssets(() => {
         });
     });
 
-    // Color swatches
     document.querySelectorAll('.color-swatch').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.color-swatch').forEach(b => b.classList.remove('selected'));
@@ -825,7 +782,6 @@ preloadAssets(() => {
     const customColorInput = document.getElementById('custom-color');
     if (customColorInput) customColorInput.addEventListener('input', e => { gameState.selectedColor = e.target.value; });
 
-    // Screen helper
     function showScreen(id) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         const el = document.getElementById(id);
@@ -859,33 +815,29 @@ preloadAssets(() => {
         showScreen('start-screen');
     });
 
-    // Single-player start
     document.getElementById('singleplayer-btn')?.addEventListener('click', () => startSinglePlayer());
 
     function startSinglePlayer() {
-        // Clear projectiles and bullets from previous race
         projectiles.length = 0;
-        bullets.length = 0;
+        bullets.length     = 0;
 
         const carType = gameState.selectedCar;
         const color1  = gameState.selectedColor;
         const cfg     = CONFIG.cars[carType];
         const color2  = cfg ? cfg.defaultColor2 : '#000000';
 
-        const trackData   = generateTrack();
-        const trackCenter = catmullRomSpline(trackData.points);
-        const halfWidth   = 70;
-        const { inner: trackInner, outer: trackOuter } = buildTrackEdges(trackCenter, halfWidth);
-        const trackWidth  = halfWidth * 2;
+        const trackData    = generateTrack();
+        const trackCenter  = catmullRomSpline(trackData.points);
+        const halfWidth    = 70;
+        const trackEdges   = buildTrackEdges(trackCenter, halfWidth);
+        const trackInnerEdge = trackEdges.inner;
+        const trackOuterEdge = trackEdges.outer;
         gameState.trackName = trackData.name;
 
         const startPt    = trackCenter[0];
-        const startAngle = Math.atan2(
-            trackCenter[1].x - trackCenter[0].x,
-            -(trackCenter[1].y - trackCenter[0].y)
-        );
+        const startAngle = Math.atan2(trackCenter[1].x - trackCenter[0].x, -(trackCenter[1].y - trackCenter[0].y));
 
-        const playerCar = new Car(startPt.x, startPt.y, startAngle, carType, color1, color2);
+        const playerCar  = new Car(startPt.x, startPt.y, startAngle, carType, color1, color2);
 
         const aiCarTypes = Object.keys(CONFIG.cars).filter(k => k !== carType);
         const aiCars = [];
@@ -900,18 +852,14 @@ preloadAssets(() => {
             ));
         }
 
-        // Expose state to 2D engine / renderer
-        window.gameState           = window.gameState || {};
-        window.gameState.playerCar = playerCar;
-        window.gameState.aiCars    = aiCars;
-        window.gameState.trackCenter = trackCenter;
-        window.gameState.trackInner  = trackInner;
-        window.gameState.trackOuter  = trackOuter;
-        window.gameState.trackWidth  = trackWidth;
+        // Expose to engine2d.js
+        window.gameState             = window.gameState || {};
+        window.gameState.playerCar   = playerCar;
+        window.gameState.aiCars      = aiCars;
+        window.gameState.trackName   = trackData.name;
         window.projectiles = projectiles;
         window.bullets     = bullets;
 
-        // Reset race counters
         gameState.screen       = 'game';
         gameState.raceStarted  = true;
         gameState.raceFinished = false;
@@ -922,26 +870,34 @@ preloadAssets(() => {
         gameState.maxSpeed     = 0;
         gameState.driftScore   = 0;
         gameState.paused       = false;
-        let lapStartTime       = performance.now();
-        const checkpoints      = [];
-        const cpI = Math.floor(trackCenter.length / 8);
-        for (let i = 0; i < 8; i++) checkpoints.push((i * cpI) % trackCenter.length);
-        let checkpointsHit     = new Set();
 
         showScreen('game-screen');
         const trackNameEl = document.getElementById('track-name');
         if (trackNameEl) trackNameEl.textContent = trackData.name;
 
-        // Start 2D top-down engine
+        // Start / restart the top-down engine with full track geometry
         if (!engineStarted) {
             engineStarted = true;
-            if (window.startEngine2D) window.startEngine2D(trackData.name, trackCenter, trackInner, trackOuter, trackWidth);
+            if (window.startEngine2D) window.startEngine2D(
+                trackData.name, trackCenter, trackInnerEdge, trackOuterEdge, halfWidth);
         } else {
-            if (window.setEngine2DTrack) window.setEngine2DTrack(trackData.name, trackCenter, trackInner, trackOuter, trackWidth);
+            if (window.setEngine2DTrack) window.setEngine2DTrack(
+                trackData.name, trackCenter, trackInnerEdge, trackOuterEdge, halfWidth);
         }
 
-        // Game logic update loop (separate from the 3D render loop)
-        let lastTime = null;
+        // Lap detection (simple: proximity to start/finish line)
+        let lastTime          = null;
+        let lapStartTime      = performance.now();
+        let nearFinish        = false;
+        // Simple checkpoint ring (every 1/8 of track)
+        const checkpoints     = [];
+        const cpInterval      = Math.floor(trackCenter.length / 8);
+        for (let i = 0; i < 8; i++) checkpoints.push(i * cpInterval);
+        let checkpointsHit    = new Set();
+
+        // AI track position accumulator (separate per AI, advances with their speed)
+        const aiTrackPosBase = 600; // spacing between AI start positions on road
+
         function gameLoop(ts) {
             if (gameState.screen !== 'game') return;
             requestAnimationFrame(gameLoop);
@@ -951,60 +907,34 @@ preloadAssets(() => {
 
             if (gameState.paused) return;
 
-            // Player update
+            // Player physics
             playerCar.update(dt, keys);
 
-            // Weapon fire: trigger once per keypress, not while held
+            // Weapon fire (once per press)
             if (keys.shoot && !keys._shootHeld) {
                 const proj = playerCar.fireWeapon();
                 if (proj) projectiles.push(proj);
             }
             keys._shootHeld = keys.shoot;
 
-            // AI update
-            aiCars.forEach(ai => ai.update(dt));
+            // AI physics + advance their _trackPos so engine3d can place sprites
+            aiCars.forEach((ai, idx) => {
+                ai.update(dt);
+                // Advance _trackPos proportional to the AI car's speed
+                const spd = Math.max(0, ai.car.speed || 0);
+                ai.car._trackPos = ((ai.car._trackPos || aiTrackPosBase * (idx + 1)) + spd * dt * 3) % (200 * 500);
+            });
 
-            // Enforce track bounds
-            enforceTrackBounds(playerCar, trackCenter, trackWidth, dt);
-            aiCars.forEach(ai => enforceTrackBounds(ai.car, trackCenter, trackWidth, dt));
+            // Track bounds enforcement
+            enforceTrackBounds(playerCar, trackCenter, halfWidth * 2, dt);
+            aiCars.forEach(ai => enforceTrackBounds(ai.car, trackCenter, halfWidth * 2, dt));
 
             // Car collisions
             checkCarCollisions([playerCar, ...aiCars.map(a => a.car)]);
 
-            // Stuck / off-track respawn (2 sec)
-            checkStuckAndRespawn(playerCar, trackCenter, trackWidth, dt);
-            aiCars.forEach(ai => checkStuckAndRespawn(ai.car, trackCenter, trackWidth, dt));
-
-            // Lap logic
-            if (!gameState.raceFinished) {
-            for (let i = 0; i < checkpoints.length; i++) {
-                const cp = trackCenter[checkpoints[i]];
-                const dx = playerCar.x - cp.x, dy = playerCar.y - cp.y;
-                if (Math.sqrt(dx * dx + dy * dy) < 100) checkpointsHit.add(i);
-            }
-            const finishPt = trackCenter[0];
-            const fd = Math.sqrt((playerCar.x - finishPt.x) ** 2 + (playerCar.y - finishPt.y) ** 2);
-            if (fd < 90 && checkpointsHit.size >= checkpoints.length - 1 && gameState.totalTime > 3) {
-                const lt = (performance.now() - lapStartTime) / 1000;
-                gameState.lapTimes.push(lt);
-                if (lt < gameState.bestLap) gameState.bestLap = lt;
-                if (gameState.currentLap >= CONFIG.TOTAL_LAPS) {
-                    gameState.raceFinished = true;
-                    setTimeout(() => {
-                        document.getElementById('final-time').textContent = formatTime(gameState.totalTime);
-                        document.getElementById('final-best-lap').textContent = formatTime(gameState.bestLap);
-                        document.getElementById('final-max-speed').textContent = Math.round(gameState.maxSpeed) + ' km/h';
-                        document.getElementById('final-drift-score').textContent = Math.floor(gameState.driftScore);
-                        document.getElementById('final-powerups').textContent = gameState.powerupsUsed;
-                        showScreen('finish-screen');
-                    }, 1500);
-                } else {
-                    gameState.currentLap++;
-                    checkpointsHit = new Set();
-                    lapStartTime = performance.now();
-                }
-            }
-            }
+            // Stuck / off-track respawn
+            checkStuckAndRespawn(playerCar, trackCenter, halfWidth * 2, dt);
+            aiCars.forEach(ai => checkStuckAndRespawn(ai.car, trackCenter, halfWidth * 2, dt));
 
             // Projectile / bullet update & cleanup
             for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -1016,10 +946,47 @@ preloadAssets(() => {
                 if (!bullets[i].active) bullets.splice(i, 1);
             }
 
+            // Lap logic (proximity-based against 2D catmull-rom track)
+            if (!gameState.raceFinished) {
+                for (let i = 0; i < checkpoints.length; i++) {
+                    const cp = trackCenter[checkpoints[i]];
+                    const dx = playerCar.x - cp.x, dy = playerCar.y - cp.y;
+                    if (Math.sqrt(dx*dx + dy*dy) < 120) checkpointsHit.add(i);
+                }
+                const fp = trackCenter[0];
+                const fd = Math.sqrt((playerCar.x - fp.x)**2 + (playerCar.y - fp.y)**2);
+                if (fd < 100 && checkpointsHit.size >= checkpoints.length - 1 && gameState.totalTime > 3) {
+                    if (!nearFinish) {
+                        nearFinish = true;
+                        const lt = (performance.now() - lapStartTime) / 1000;
+                        gameState.lapTimes.push(lt);
+                        if (lt < gameState.bestLap) gameState.bestLap = lt;
+                        if (gameState.currentLap >= CONFIG.TOTAL_LAPS) {
+                            gameState.raceFinished = true;
+                            setTimeout(() => {
+                                document.getElementById('final-time')?.setAttribute('textContent', formatTime(gameState.totalTime));
+                                document.getElementById('final-time') && (document.getElementById('final-time').textContent = formatTime(gameState.totalTime));
+                                document.getElementById('final-best-lap') && (document.getElementById('final-best-lap').textContent = formatTime(gameState.bestLap));
+                                document.getElementById('final-max-speed') && (document.getElementById('final-max-speed').textContent = Math.round(gameState.maxSpeed) + ' km/h');
+                                document.getElementById('final-drift-score') && (document.getElementById('final-drift-score').textContent = Math.floor(gameState.driftScore));
+                                document.getElementById('final-powerups') && (document.getElementById('final-powerups').textContent = gameState.powerupsUsed);
+                                showScreen('finish-screen');
+                            }, 1500);
+                        } else {
+                            gameState.currentLap++;
+                            checkpointsHit = new Set();
+                            lapStartTime   = performance.now();
+                        }
+                    }
+                } else {
+                    nearFinish = false;
+                }
+            }
+
             // Race timer
             if (!gameState.raceFinished) gameState.totalTime += dt;
 
-            // HUD updates
+            // HUD
             const spd = Math.abs(playerCar.speed);
             if (spd > gameState.maxSpeed) gameState.maxSpeed = spd;
             const speedEl = document.getElementById('speed-number');
@@ -1031,14 +998,14 @@ preloadAssets(() => {
             if (timeEl)  timeEl.textContent   = formatTime(gameState.totalTime);
             if (lapEl)   lapEl.textContent    = gameState.currentLap + ' / ' + CONFIG.TOTAL_LAPS;
 
-            // Keep engine2d in sync
+            // Sync state for engine3d
             window.gameState.playerCar = playerCar;
             window.gameState.aiCars    = aiCars;
         }
         requestAnimationFrame(gameLoop);
     }
 
-    // Multiplayer button
+    // Multiplayer
     document.getElementById('multiplayer-btn')?.addEventListener('click', () => {
         network.connect();
         showScreen('lobby-screen');
@@ -1065,5 +1032,3 @@ function formatTime(seconds) {
     const ms = Math.floor((seconds % 1) * 10);
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + '.' + ms;
 }
-
-

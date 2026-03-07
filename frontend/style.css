@@ -193,6 +193,7 @@ body {
 .car-option.selected { border-color: var(--neon-cyan); box-shadow: 0 0 14px rgba(0, 240, 255, 0.3); background: rgba(0, 240, 255, 0.08); }
 
 .car-preview { width: 22px; height: 42px; border-radius: 5px 5px 3px 3px; margin: 0 auto 2px; }
+.car-preview-img { width: 32px; height: 48px; object-fit: contain; margin: 0 auto 2px; display: block; image-rendering: pixelated; }
 .sport-preview   { background: linear-gradient(to bottom, #0066ff, #003399); }
 .muscle-preview  { background: linear-gradient(to bottom, #2d2dff, #0000aa); }
 .drift-preview   { background: linear-gradient(to bottom, #ff6a00, #cc4400); }
