@@ -333,15 +333,29 @@ function checkCarCollisions(allCars) {
             if (dist < md && dist > 0) {
                 const nx = dx / dist, ny = dy / dist;
                 const ol = md - dist;
-                if (!a.shielded) { a.x -= nx * ol * 0.5; a.y -= ny * ol * 0.5; }
-                if (!b.shielded) { b.x += nx * ol * 0.5; b.y += ny * ol * 0.5; }
+                
+                // Effective physical push
+                const pushForce = ol * 0.8;
+                if (!a.shielded) { a.x -= nx * pushForce; a.y -= ny * pushForce; }
+                if (!b.shielded) { b.x += nx * pushForce; b.y += ny * pushForce; }
+                
                 const rvx = a.velocity.x - b.velocity.x, rvy = a.velocity.y - b.velocity.y;
                 const rd = rvx * nx + rvy * ny;
                 if (rd > 0) {
                     const mA = a.config?.mass || 1200, mB = b.config?.mass || 1200;
                     const tm = mA + mB;
-                    if (!a.shielded) { a.velocity.x -= (2*mB/tm)*rd*nx*0.6; a.velocity.y -= (2*mB/tm)*rd*ny*0.6; }
-                    if (!b.shielded) { b.velocity.x += (2*mA/tm)*rd*nx*0.6; b.velocity.y += (2*mA/tm)*rd*ny*0.6; }
+                    // Stronger impulse for "effective" collisions
+                    const impulse = rd * 1.2; 
+                    if (!a.shielded) { 
+                        a.velocity.x -= (2*mB/tm)*impulse*nx; 
+                        a.velocity.y -= (2*mB/tm)*impulse*ny;
+                        if (impulse > 100) { a.stunned = true; a.stunTimer = 0.2; }
+                    }
+                    if (!b.shielded) { 
+                        b.velocity.x += (2*mA/tm)*impulse*nx; 
+                        b.velocity.y += (2*mA/tm)*impulse*ny;
+                        if (impulse > 100) { b.stunned = true; b.stunTimer = 0.2; }
+                    }
                 }
             }
         }
@@ -655,7 +669,7 @@ class AICar {
         this.overtakeTimer  = 0;
     }
     update(dt) {
-        // 1. Get current track target with offset
+        // 1. Get current track target
         const target = this.trackPoints[this.currentTarget];
         
         // 2. Smoothly steer towards the target
@@ -685,27 +699,31 @@ class AICar {
         while (fa >  Math.PI) fa -= Math.PI*2;
         while (fa < -Math.PI) fa += Math.PI*2;
 
-        // Slow down if there's a sharp turn ahead
-        if (Math.abs(fa) > 0.4) {
+        // Maintain high speed, only brake slightly on extreme turns
+        const turnSharpness = Math.abs(fa);
+        if (turnSharpness > 0.6 && Math.abs(this.car.speed) > 180) {
             keys.up = false;
-            if (Math.abs(this.car.speed) > 100) keys.down = true;
+            keys.down = true; 
+        } else if (turnSharpness > 0.4 && Math.abs(this.car.speed) > 220) {
+            keys.up = false;
         }
 
-        // Apply speed variation and max speed limit
-        const maxAllowedSpeed = this.car.config.maxSpeed * this.speedVariation;
+        // Speed limit with variation
+        const maxAllowedSpeed = this.car.config.maxSpeed * (this.speedVariation + 0.1); 
         if (Math.abs(this.car.speed) > maxAllowedSpeed) {
             keys.up = false;
         }
 
-        // Small chance to use weapon if player is nearby
-        if (Math.random() < 0.01 && !this.car.heldWeapon && !this.car.weaponCooldown) {
-            // AI firing logic could be added here
+        // Always try to maintain at least 80% of current max speed
+        if (Math.abs(this.car.speed) < maxAllowedSpeed * 0.5) {
+            keys.up = true;
+            keys.down = false;
         }
 
         this.car.update(dt, keys);
 
         // Move to next target point when close enough
-        if (dist < 100) {
+        if (dist < 120) {
             this.currentTarget = (this.currentTarget + 1) % this.trackPoints.length;
         }
     }
