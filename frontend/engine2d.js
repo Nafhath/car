@@ -1,8 +1,5 @@
 /**
- * ENGINE2D.JS — 2D Top-Down Racing Renderer
- *
- * Renders realistic tracks with terrain (mountains, hills, forests) in top-down view.
- * Uses top-view car PNG sprites from assets folder.
+ * ENGINE2D.JS — Optimized 2D Top-Down Racing Renderer
  */
 
 const canvas = document.getElementById('gameCanvas');
@@ -20,7 +17,6 @@ function resizeCanvas() {
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-// ─── Car sprite assets (top-view PNGs) ─────────────────────────────────────
 const carModels = {};
 Object.keys(CONFIG?.cars || {}).forEach(k => {
     const img = new Image();
@@ -28,7 +24,6 @@ Object.keys(CONFIG?.cars || {}).forEach(k => {
     carModels[k] = { img };
 });
 
-// ─── Track themes (terrain colors for different environments) ───────────────
 const TRACK_THEMES = {
     'City Circuit': {
         ground: ['#2d3a2d', '#3d4a3d', '#4a5a4a', '#5a6a5a'],
@@ -68,7 +63,6 @@ const TRACK_THEMES = {
     }
 };
 
-// Simple noise for terrain
 function noise2D(x, y, seed = 12345) {
     const n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
     return n - Math.floor(n);
@@ -89,20 +83,19 @@ function smoothNoise(x, y, scale, seed) {
 function getElevation(x, y, theme) {
     const n1 = smoothNoise(x, y, 0.002, 1);
     const n2 = smoothNoise(x, y, 0.008, 2) * 0.5;
-    const n3 = smoothNoise(x, y, 0.02, 3) * 0.25;
-    return n1 + n2 + n3;
+    return n1 + n2;
 }
 
-// ─── Terrain rendering ─────────────────────────────────────────────────────
 function renderTerrain(ctx, camera, themeName) {
     const theme = TRACK_THEMES[themeName] || TRACK_THEMES['Forest Trail'];
     const cx = camera.x, cy = camera.y;
-    const gs = 60;
-    const pad = 1.5;
-    const sx = Math.floor((cx - width * pad / camera.zoom) / gs) * gs;
-    const sy = Math.floor((cy - height * pad / camera.zoom) / gs) * gs;
-    const ex = cx + width * pad / camera.zoom;
-    const ey = cy + height * pad / camera.zoom;
+    const gs = 150; // High performance grid
+    const pad = 1.2;
+    const zoom = camera.zoom || 1;
+    const sx = Math.floor((cx - width * pad / zoom) / gs) * gs;
+    const sy = Math.floor((cy - height * pad / zoom) / gs) * gs;
+    const ex = cx + width * pad / zoom;
+    const ey = cy + height * pad / zoom;
 
     for (let x = sx; x < ex; x += gs) {
         for (let y = sy; y < ey; y += gs) {
@@ -113,174 +106,93 @@ function renderTerrain(ctx, camera, themeName) {
         }
     }
 
-    // Water / lakes for coastal
     if (theme.water) {
         ctx.fillStyle = theme.water;
-        ctx.globalAlpha = 0.6;
-        for (let x = sx; x < ex; x += gs * 2) {
-            for (let y = sy; y < ey; y += gs * 2) {
+        ctx.globalAlpha = 0.5;
+        const wgs = gs * 3;
+        for (let x = sx; x < ex; x += wgs) {
+            for (let y = sy; y < ey; y += wgs) {
                 const n = smoothNoise(x * 0.001, y * 0.001, 1, 99);
-                if (n > 0.7) {
-                    ctx.fillRect(x - gs, y - gs, gs * 4, gs * 4);
-                }
-            }
-        }
-        ctx.globalAlpha = 1;
-    }
-
-    // Sand strips for desert
-    if (theme.sand) {
-        ctx.fillStyle = theme.sand;
-        ctx.globalAlpha = 0.4;
-        for (let x = sx; x < ex; x += gs) {
-            for (let y = sy; y < ey; y += gs) {
-                const n = smoothNoise(x * 0.003, y * 0.003, 1, 77);
-                if (n > 0.5) ctx.fillRect(x, y, gs + 1, gs + 1);
+                if (n > 0.75) ctx.fillRect(x - gs, y - gs, wgs * 2, wgs * 2);
             }
         }
         ctx.globalAlpha = 1;
     }
 }
 
-// ─── Decorations ───────────────────────────────────────────────────────────
 function generateDecorations(trackCenter, trackOuter, trackInner, themeName) {
     const decs = [];
     const n = trackCenter.length;
     const theme = TRACK_THEMES[themeName] || TRACK_THEMES['Forest Trail'];
 
-    for (let i = 0; i < n; i += 4) {
+    for (let i = 0; i < n; i += 15) {
         const prev = trackCenter[(i - 1 + n) % n], curr = trackCenter[i], next = trackCenter[(i + 1) % n];
         const dx = next.x - prev.x, dy = next.y - prev.y, len = Math.sqrt(dx * dx + dy * dy) || 1;
         const nx = -dy / len, ny = dx / len;
-        const dist = 90 + Math.random() * 120;
+        const dist = 100 + Math.random() * 150;
+        const side = Math.random() > 0.5 ? 1 : -1;
         const r = Math.random();
 
         if (theme.decorations.includes('pine') && r < 0.4) {
-            decs.push({ type: 'pine', x: curr.x - nx * dist * (Math.random() > 0.5 ? 1 : -1), y: curr.y - ny * dist * (Math.random() > 0.5 ? 1 : -1), size: 8 + Math.random() * 10 });
-        } else if (theme.decorations.includes('building') && r < 0.35) {
-            decs.push({ type: 'building', x: curr.x - nx * dist, y: curr.y - ny * dist, w: 35 + Math.random() * 25, h: 20 + Math.random() * 20 });
-        } else if (theme.decorations.includes('rock') && r < 0.5) {
-            decs.push({ type: 'rock', x: curr.x + nx * (dist + 20) * (Math.random() > 0.5 ? 1 : -1), y: curr.y + ny * (dist + 20) * (Math.random() > 0.5 ? 1 : -1), size: 5 + Math.random() * 10 });
-        } else if (theme.decorations.includes('bush') && r < 0.45) {
-            decs.push({ type: 'bush', x: curr.x + nx * dist * (Math.random() > 0.5 ? 1 : -1), y: curr.y + ny * dist * (Math.random() > 0.5 ? 1 : -1), size: 6 + Math.random() * 8 });
-        } else if (theme.decorations.includes('lamp') && r < 0.3) {
-            decs.push({ type: 'lamp', x: curr.x - nx * 85, y: curr.y - ny * 85 });
-        } else if (theme.decorations.includes('barrier') && r < 0.25) {
-            decs.push({ type: 'barrier', x: curr.x - nx * 75, y: curr.y - ny * 75, angle: Math.atan2(dy, dx) });
-        } else if (theme.decorations.includes('grandstand') && i % 60 === 0) {
-            decs.push({ type: 'grandstand', x: curr.x - nx * 150, y: curr.y - ny * 150, w: 60, h: 35 });
-        } else if (theme.decorations.includes('cactus') && r < 0.35) {
-            decs.push({ type: 'cactus', x: curr.x + nx * dist * (Math.random() > 0.5 ? 1 : -1), y: curr.y + ny * dist * (Math.random() > 0.5 ? 1 : -1) });
-        } else if (theme.decorations.includes('mountain') && r < 0.2) {
-            decs.push({ type: 'mountain', x: curr.x - nx * (dist + 100), y: curr.y - ny * (dist + 100), size: 40 + Math.random() * 50 });
+            decs.push({ type: 'pine', x: curr.x - nx * dist * side, y: curr.y - ny * dist * side, size: 8 + Math.random() * 10 });
+        } else if (theme.decorations.includes('building') && r < 0.3) {
+            decs.push({ type: 'building', x: curr.x - nx * dist * side, y: curr.y - ny * dist * side, w: 40 + Math.random() * 30, h: 25 + Math.random() * 25, lights: Array.from({length:6}, () => Math.random() > 0.4) });
+        } else if (theme.decorations.includes('rock') && r < 0.4) {
+            decs.push({ type: 'rock', x: curr.x + nx * (dist + 30) * side, y: curr.y + ny * (dist + 30) * side, size: 6 + Math.random() * 12 });
+        } else if (theme.decorations.includes('bush') && r < 0.4) {
+            decs.push({ type: 'bush', x: curr.x + nx * dist * side, y: curr.y - ny * dist * side, size: 7 + Math.random() * 10 });
+        } else if (theme.decorations.includes('lamp') && r < 0.2) {
+            decs.push({ type: 'lamp', x: curr.x - nx * 90 * side, y: curr.y - ny * 90 * side });
         }
     }
     return decs;
 }
 
-function renderDecorations(ctx, decs, themeName) {
+function renderDecorations(ctx, decs, camera) {
+    const cx = camera.x, cy = camera.y;
+    const zoom = camera.zoom || 1;
+    const pad = 1.1;
+    const vw = (width / zoom) * pad, vh = (height / zoom) * pad;
+
     decs.forEach(d => {
+        if (d.x < cx - vw || d.x > cx + vw || d.y < cy - vh || d.y > cy + vh) return;
+
         ctx.save();
         ctx.translate(d.x, d.y);
         switch (d.type) {
             case 'pine':
-                ctx.fillStyle = '#3d2b1f';
-                ctx.fillRect(-2, -2, 4, 10);
+                ctx.fillStyle = '#3d2b1f'; ctx.fillRect(-2, -2, 4, 10);
                 ctx.fillStyle = '#1a4a1a';
                 for (let L = 0; L < 3; L++) {
                     const s = (d.size || 12) - L * 4;
-                    ctx.beginPath();
-                    ctx.moveTo(0, -s); ctx.lineTo(s * 0.7, s * 0.3); ctx.lineTo(-s * 0.7, s * 0.3);
+                    ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(s * 0.7, s * 0.3); ctx.lineTo(-s * 0.7, s * 0.3);
                     ctx.closePath(); ctx.fill();
                 }
                 break;
             case 'building':
-                ctx.fillStyle = '#333344';
-                ctx.fillRect(-(d.w || 30) / 2, -(d.h || 25) / 2, d.w || 30, d.h || 25);
-                ctx.strokeStyle = '#555';
-                ctx.strokeRect(-(d.w || 30) / 2, -(d.h || 25) / 2, d.w || 30, d.h || 25);
-                for (let wx = 0; wx < 3; wx++) for (let wy = 0; wy < 2; wy++) {
-                    ctx.fillStyle = Math.random() > 0.3 ? '#ffdd88' : '#444455';
+                ctx.fillStyle = '#333344'; ctx.fillRect(-(d.w || 30) / 2, -(d.h || 25) / 2, d.w || 30, d.h || 25);
+                ctx.strokeStyle = '#555'; ctx.strokeRect(-(d.w || 30) / 2, -(d.h || 25) / 2, d.w || 30, d.h || 25);
+                if (d.lights) d.lights.forEach((on, i) => {
+                    ctx.fillStyle = on ? '#ffdd88' : '#222233';
+                    const wx = i % 3, wy = Math.floor(i / 3);
                     ctx.fillRect(-(d.w || 30) / 2 + 6 + wx * 10, -(d.h || 25) / 2 + 6 + wy * 10, 6, 6);
-                }
+                });
                 break;
             case 'rock':
-                ctx.fillStyle = '#5a5a5a';
-                ctx.beginPath();
-                ctx.ellipse(0, 0, d.size || 8, (d.size || 8) * 0.7, 0.3, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillStyle = '#5a5a5a'; ctx.beginPath(); ctx.ellipse(0, 0, d.size || 8, (d.size || 8) * 0.7, 0.3, 0, Math.PI * 2); ctx.fill();
                 break;
             case 'bush':
-                ctx.fillStyle = '#2a5a2a';
-                ctx.beginPath();
-                ctx.arc(0, 0, d.size || 8, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillStyle = '#2a5a2a'; ctx.beginPath(); ctx.arc(0, 0, d.size || 8, 0, Math.PI * 2); ctx.fill();
                 break;
             case 'lamp':
-                ctx.fillStyle = '#444';
-                ctx.fillRect(-2, -14, 4, 14);
-                ctx.fillStyle = '#ffdd66';
-                ctx.beginPath();
-                ctx.arc(0, -16, 5, 0, Math.PI * 2);
-                ctx.fill();
-                break;
-            case 'barrier':
-                ctx.rotate(d.angle || 0);
-                for (let t = 0; t < 5; t++) {
-                    ctx.fillStyle = t % 2 === 0 ? '#cc3333' : '#ffffff';
-                    ctx.beginPath();
-                    ctx.arc(t * 8 - 16, 0, 5, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                break;
-            case 'grandstand':
-                ctx.fillStyle = '#2a2a3a';
-                ctx.fillRect(-(d.w || 60) / 2, -(d.h || 35) / 2, d.w || 60, d.h || 35);
-                ctx.fillStyle = '#444';
-                for (let row = 0; row < 4; row++) {
-                    for (let col = 0; col < 8; col++) {
-                        ctx.fillRect(-28 + col * 8, -15 + row * 6, 5, 4);
-                    }
-                }
-                break;
-            case 'cactus':
-                ctx.fillStyle = '#2a4a2a';
-                ctx.fillRect(-4, -20, 8, 24);
-                ctx.fillRect(-4, -20, 6, 8);
-                ctx.fillRect(2, -8, 6, 8);
-                ctx.fillStyle = '#3a6a3a';
-                ctx.beginPath();
-                ctx.ellipse(0, -22, 6, 4, 0, 0, Math.PI * 2);
-                ctx.fill();
-                break;
-            case 'mountain':
-                const sz = d.size || 50;
-                ctx.fillStyle = '#6a7a6a';
-                ctx.beginPath();
-                ctx.moveTo(0, sz * 0.3);
-                ctx.lineTo(-sz * 0.8, sz * 0.3);
-                ctx.lineTo(-sz * 0.3, -sz * 0.2);
-                ctx.lineTo(0, -sz * 0.5);
-                ctx.lineTo(sz * 0.3, -sz * 0.2);
-                ctx.lineTo(sz * 0.8, sz * 0.3);
-                ctx.closePath();
-                ctx.fill();
-                ctx.strokeStyle = '#5a6a5a';
-                ctx.stroke();
-                ctx.fillStyle = '#8a9a8a';
-                ctx.beginPath();
-                ctx.moveTo(0, -sz * 0.5);
-                ctx.lineTo(-sz * 0.2, sz * 0.2);
-                ctx.lineTo(sz * 0.2, sz * 0.2);
-                ctx.closePath();
-                ctx.fill();
+                ctx.fillStyle = '#444'; ctx.fillRect(-2, -14, 4, 14);
+                ctx.fillStyle = '#ffdd66'; ctx.beginPath(); ctx.arc(0, -16, 5, 0, Math.PI * 2); ctx.fill();
                 break;
         }
         ctx.restore();
     });
 }
 
-// ─── Track rendering ───────────────────────────────────────────────────────
 function renderTrack(ctx, trackCenter, trackInner, trackOuter, themeName) {
     const theme = TRACK_THEMES[themeName] || TRACK_THEMES['Forest Trail'];
     const n = trackCenter.length;
@@ -297,14 +209,11 @@ function renderTrack(ctx, trackCenter, trackInner, trackOuter, themeName) {
 
     ctx.strokeStyle = theme.curb;
     ctx.lineWidth = 5;
-    ctx.shadowColor = theme.curb;
-    ctx.shadowBlur = 8;
     ctx.beginPath();
     ctx.moveTo(trackOuter[0].x, trackOuter[0].y);
     for (let i = 1; i < n; i++) ctx.lineTo(trackOuter[i].x, trackOuter[i].y);
     ctx.closePath();
     ctx.stroke();
-    ctx.shadowBlur = 0;
 
     ctx.strokeStyle = theme.curbAlt;
     ctx.lineWidth = 4;
@@ -313,19 +222,8 @@ function renderTrack(ctx, trackCenter, trackInner, trackOuter, themeName) {
     for (let i = 1; i < n; i++) ctx.lineTo(trackInner[i].x, trackInner[i].y);
     ctx.closePath();
     ctx.stroke();
-
-    ctx.setLineDash([18, 28]);
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(trackCenter[0].x, trackCenter[0].y);
-    for (let i = 1; i < n; i++) ctx.lineTo(trackCenter[i].x, trackCenter[i].y);
-    ctx.closePath();
-    ctx.stroke();
-    ctx.setLineDash([]);
 }
 
-// ─── Finish line ───────────────────────────────────────────────────────────
 function renderFinishLine(ctx, trackCenter, trackWidth) {
     const fp = trackCenter[0], n = trackCenter.length;
     const prev = trackCenter[n - 1], next = trackCenter[1];
@@ -344,20 +242,6 @@ function renderFinishLine(ctx, trackCenter, trackWidth) {
     }
 }
 
-// ─── Tire marks ────────────────────────────────────────────────────────────
-function renderTireMarks(ctx, cars) {
-    cars.forEach(car => {
-        if (!car?.tireMarks) return;
-        car.tireMarks.forEach(m => {
-            ctx.beginPath();
-            ctx.arc(m.x, m.y, 2.5, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(20,20,20,${(m.alpha || 0.5) * 0.7})`;
-            ctx.fill();
-        });
-    });
-}
-
-// ─── Car rendering (top-view PNG sprites) ───────────────────────────────────
 function renderCar(ctx, car, alpha) {
     const carType = car.carType || 'bmw_m4';
     const model = carModels[carType];
@@ -384,69 +268,46 @@ function renderCar(ctx, car, alpha) {
         ctx.lineWidth = 3;
         ctx.globalAlpha = 0.4;
         ctx.beginPath();
-        ctx.ellipse(0, 0, w * 0.6, h * 0.6, 0, 0, Math.PI * 2);
+        ctx.arc(0, 0, h * 0.6, 0, Math.PI * 2);
         ctx.stroke();
     }
-
-    ctx.globalAlpha = 1;
     ctx.restore();
 }
 
-// ─── Projectiles & bullets ──────────────────────────────────────────────────
 function renderProjectiles(ctx, projectiles, bullets) {
     (projectiles || []).forEach(p => {
         if (!p.active) return;
-        if (p.type === 'missile') {
-            ctx.fillStyle = '#ff4444';
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-            ctx.fill();
-        } else if (p.type === 'oil') {
-            ctx.fillStyle = 'rgba(40,30,20,0.7)';
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.radius || 20, 0, Math.PI * 2);
-            ctx.fill();
-        } else if (p.type === 'emp') {
-            ctx.fillStyle = `rgba(0,240,255,${p.life * 0.4})`;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.radius || 60, 0, Math.PI * 2);
-            ctx.fill();
-        }
+        ctx.fillStyle = p.type === 'missile' ? '#f44' : 'rgba(40,30,20,0.7)';
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius || 6, 0, Math.PI * 2); ctx.fill();
     });
     (bullets || []).forEach(b => {
         if (!b.active) return;
-        ctx.fillStyle = '#ffff88';
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillStyle = '#ff8'; ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI * 2); ctx.fill();
     });
 }
 
-// ─── Main render loop ──────────────────────────────────────────────────────
 let decorations = [];
 
-function render() {
+window.render2DScene = function() {
     if (!window._engine2DRunning) return;
 
     const gs = window.gameState;
-    if (!gs?.trackCenter || !gs?.trackInner || !gs?.trackOuter) {
-        requestAnimationFrame(render);
-        return;
-    }
+    if (!gs?.trackCenter || !gs?.trackInner || !gs?.trackOuter) return;
 
     const pc = gs.playerCar;
     const camera = gs.camera || { x: 0, y: 0, zoom: 1 };
+    
+    // Smooth Camera (delta-time independent enough for 60fps)
     if (pc) {
-        camera.x += (pc.x - camera.x) * 0.08;
-        camera.y += (pc.y - camera.y) * 0.08;
+        camera.x += (pc.x - camera.x) * 0.1;
+        camera.y += (pc.y - camera.y) * 0.1;
         const sr = Math.abs(pc.speed) / (pc.config?.maxSpeed || 280);
-        camera.targetZoom = 1.15 - sr * 0.25;
+        camera.targetZoom = 1.1 - sr * 0.2;
         camera.zoom += ((camera.targetZoom || 1) - camera.zoom) * 0.05;
     }
     gs.camera = camera;
 
-    width = canvas.width;
-    height = canvas.height;
+    width = canvas.width; height = canvas.height;
     ctx.clearRect(0, 0, width, height);
 
     ctx.save();
@@ -456,28 +317,20 @@ function render() {
 
     renderTerrain(ctx, camera, gs.trackName || 'Forest Trail');
     renderTrack(ctx, gs.trackCenter, gs.trackInner, gs.trackOuter, gs.trackName || 'Forest Trail');
-    renderTireMarks(ctx, [pc, ...(gs.aiCars || []).map(a => a?.car).filter(Boolean)]);
-    if (decorations.length > 0) {
-        renderDecorations(ctx, decorations, gs.trackName || 'Forest Trail');
-    }
+    
+    if (decorations.length > 0) renderDecorations(ctx, decorations, camera);
     renderFinishLine(ctx, gs.trackCenter, gs.trackWidth || 140);
 
-    (gs.aiCars || []).forEach(ai => {
-        const car = ai?.car || ai;
-        if (car) renderCar(ctx, car, 0.9);
-    });
+    (gs.aiCars || []).forEach(ai => { if (ai?.car) renderCar(ctx, ai.car, 0.9); });
     if (pc) renderCar(ctx, pc, 1);
 
     renderProjectiles(ctx, window.projectiles || [], window.bullets || []);
-
     ctx.restore();
-    requestAnimationFrame(render);
-}
+};
 
-// ─── Public API ────────────────────────────────────────────────────────────
 window.startEngine2D = function (trackName, trackCenter, trackInner, trackOuter, trackWidth) {
     window._engine2DRunning = true;
-    if (trackCenter && trackInner && trackOuter) {
+    if (trackCenter) {
         window.gameState = window.gameState || {};
         window.gameState.trackCenter = trackCenter;
         window.gameState.trackInner = trackInner;
@@ -488,19 +341,15 @@ window.startEngine2D = function (trackName, trackCenter, trackInner, trackOuter,
         decorations = generateDecorations(trackCenter, trackOuter, trackInner, trackName || 'Forest Trail');
     }
     resizeCanvas();
-    render();
 };
 
-window.stopEngine2D = function () {
-    window._engine2DRunning = false;
-};
+window.stopEngine2D = function () { window._engine2DRunning = false; };
 
 window.setEngine2DTrack = function (trackName, trackCenter, trackInner, trackOuter, trackWidth) {
     if (window.gameState) {
         window.gameState.trackCenter = trackCenter;
         window.gameState.trackInner = trackInner;
         window.gameState.trackOuter = trackOuter;
-        window.gameState.trackWidth = trackWidth || 140;
         window.gameState.trackName = trackName || 'Forest Trail';
         decorations = generateDecorations(trackCenter, trackOuter, trackInner, trackName || 'Forest Trail');
     }

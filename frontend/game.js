@@ -263,13 +263,17 @@ function enforceTrackBounds(car, trackCenter, trackWidth, dt = 0.016) {
         const cp = trackCenter[closestIdx];
         const dx = car.x - cp.x, dy = car.y - cp.y;
         const len = dist || 1, nx = dx / len, ny = dy / len;
+        
+        // Push back smoothly
         car.x = cp.x + nx * maxDist;
         car.y = cp.y + ny * maxDist;
+        
+        // Reflect velocity with less bounce
         const dot = car.velocity.x * nx + car.velocity.y * ny;
         if (dot > 0) {
-            car.velocity.x -= nx * dot * 1.5;
-            car.velocity.y -= ny * dot * 1.5;
-            car.speed *= 0.7;
+            car.velocity.x -= nx * dot * 1.2;
+            car.velocity.y -= ny * dot * 1.2;
+            car.speed *= 0.8;
         }
     } else {
         car._offTrackTimer = 0;
@@ -528,7 +532,7 @@ class Car {
                 { x: this.x - forwardX*this.height*0.35 - rightX*this.width*0.35, y: this.y - forwardY*this.height*0.35 - rightY*this.width*0.35, alpha: sa }
             );
         }
-        if (this.tireMarks.length > 2000) this.tireMarks = this.tireMarks.slice(-1500);
+        if (this.tireMarks.length > 600) this.tireMarks = this.tireMarks.slice(-400);
 
         this.updateParticles(dt);
         this.headlightFlicker = 0.95 + Math.random() * 0.05;
@@ -998,9 +1002,12 @@ preloadAssets(() => {
             if (timeEl)  timeEl.textContent   = formatTime(gameState.totalTime);
             if (lapEl)   lapEl.textContent    = gameState.currentLap + ' / ' + CONFIG.TOTAL_LAPS;
 
-            // Sync state for engine3d
+            // Sync state for engine
             window.gameState.playerCar = playerCar;
             window.gameState.aiCars    = aiCars;
+
+            // Trigger Render
+            if (window.render2DScene) window.render2DScene();
         }
         requestAnimationFrame(gameLoop);
     }
