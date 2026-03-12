@@ -342,16 +342,23 @@ function respawnCarToTrack(car, trackCenter) {
 
 function checkStuckAndRespawn(car, trackCenter, trackWidth, dt) {
     if (!car) return;
-    const moved = Math.sqrt((car.x - (car._lastStuckX ?? car.x)) ** 2 + (car.y - (car._lastStuckY ?? car.y)) ** 2);
-    const threshold = 15;
-    if (moved < threshold) {
+    // Use speed instead of per-frame position delta so normal slow movement
+    // doesn't incorrectly look "stuck".
+    const vx = car.velocity?.x || 0;
+    const vy = car.velocity?.y || 0;
+    const speedScalar = Math.sqrt(vx * vx + vy * vy);
+    const MIN_STUCK_SPEED = 10; // units per second (very slow)
+
+    const isTryingToMove = (car.throttle > 0 || car.brake > 0 || car.handbrake);
+
+    if (isTryingToMove && speedScalar < MIN_STUCK_SPEED) {
         car._stuckTimer = (car._stuckTimer || 0) + dt;
     } else {
         car._stuckTimer = 0;
     }
-    car._lastStuckX = car.x;
-    car._lastStuckY = car.y;
-    // Respawn only if the car truly hasn't moved for 5 seconds
+
+    // Respawn only if the car truly hasn't moved for 5 seconds while
+    // the driver/AI is trying to move.
     if (car._stuckTimer >= 5) {
         respawnCarToTrack(car, trackCenter);
     }
