@@ -147,8 +147,8 @@ const CONFIG = {
 // Difficulty presets
 const DIFFICULTY = {
     easy: { aiSpeed: 0.55, aiLookahead: 12, aiReaction: 0.12, label: 'EASY' },
-    medium: { aiSpeed: 0.75, aiLookahead: 18, aiReaction: 0.06, label: 'MEDIUM' },
-    hard: { aiSpeed: 0.95, aiLookahead: 25, aiReaction: 0.03, label: 'HARD' }
+    medium: { aiSpeed: 0.85, aiLookahead: 18, aiReaction: 0.06, label: 'MEDIUM' },
+    hard: { aiSpeed: 1.0, aiLookahead: 25, aiReaction: 0.03, label: 'HARD' }
 };
 
 // ============= POWER-UP & WEAPON TYPES =============
@@ -401,6 +401,16 @@ function checkCarCollisions(allCars) {
                         if (!b.shielded) { b.velocity.x += j * invB * nx; b.velocity.y += j * invB * ny; }
                     }
                 }
+
+                // Spin / rotation effect so collisions feel impactful.
+                // Project relative velocity onto the tangent to decide spin direction.
+                const tx = -ny, ty = nx;
+                const relLat = relVx * tx + relVy * ty;
+                const spinScale = 0.0008; // tweak for how violently cars rotate
+                const spinA = -relLat * spinScale;
+                const spinB = relLat * spinScale;
+                if (!a.shielded) a.angle += spinA;
+                if (!b.shielded) b.angle += spinB;
             }
         }
     }
@@ -727,7 +737,9 @@ class AICar {
         const diff = DIFFICULTY[CONFIG.difficulty] || DIFFICULTY.medium;
         // Bug fix #7: clamp speedVariation so it never goes zero or negative
         this.speedVariation = Math.max(0.1, diff.aiSpeed + (Math.random() - 0.5) * 0.1);
-        this.lineOffset = (Math.random() - 0.5) * 40;
+        // Keep AI closer to the center of the lane so they don't scrape
+        // walls/track edges too aggressively.
+        this.lineOffset = (Math.random() - 0.5) * 25;
         this.lookahead = diff.aiLookahead + Math.floor(Math.random() * 6);
         this.reactionDelay = diff.aiReaction;
         this.overtakeTimer = 0;
@@ -947,8 +959,10 @@ preloadAssets(() => {
 
         const aiCarTypes = Object.keys(CONFIG.cars).filter(k => k !== carType);
         const aiCars = [];
-        for (let i = 0; i < 4; i++) {
-            const offset = Math.floor((trackCenter.length / 5) * (i + 1));
+        const AI_COUNT = 10;
+        const spacing = trackCenter.length / (AI_COUNT + 1);
+        for (let i = 0; i < AI_COUNT; i++) {
+            const offset = Math.floor(spacing * (i + 1));
             const aiType = aiCarTypes[i % aiCarTypes.length];
             const aiCfg  = CONFIG.cars[aiType];
             aiCars.push(new AICar(
