@@ -784,8 +784,17 @@ class AICar {
         }
 
         const target = this.trackPoints[this.currentTarget];
-        const dx = target.x + this.lineOffset - this.car.x;
-        const dy = target.y + this.lineOffset - this.car.y;
+        const prev = this.trackPoints[(this.currentTarget - 1 + this.trackPoints.length) % this.trackPoints.length];
+        const next = this.trackPoints[(this.currentTarget + 1) % this.trackPoints.length];
+        const dirX = next.x - prev.x;
+        const dirY = next.y - prev.y;
+        const dirLen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+        const normalX = -dirY / dirLen;
+        const normalY = dirX / dirLen;
+        const targetX = target.x + normalX * this.lineOffset;
+        const targetY = target.y + normalY * this.lineOffset;
+        const dx = targetX - this.car.x;
+        const dy = targetY - this.car.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const targetAngle = Math.atan2(dx, -dy);
         let angleDiff = targetAngle - this.car.angle;
@@ -903,6 +912,25 @@ preloadAssets(() => {
     }
 
     let engineStarted = false;
+    let activeGameLoopId = 0;
+    let pendingMultiplayerJoin = null;
+
+    network.on('connected', () => {
+        const statusEl = document.getElementById('connection-status');
+        if (statusEl) statusEl.textContent = '✅ Connected';
+        if (!pendingMultiplayerJoin) return;
+        network.joinRoom(
+            pendingMultiplayerJoin.name,
+            pendingMultiplayerJoin.carType,
+            pendingMultiplayerJoin.color1,
+            pendingMultiplayerJoin.color2
+        );
+        pendingMultiplayerJoin = null;
+    });
+    network.on('disconnected', () => {
+        const statusEl = document.getElementById('connection-status');
+        if (statusEl) statusEl.textContent = '❌ Disconnected';
+    });
 
     // Pause / resume / quit
     document.addEventListener('keydown', e => {
@@ -918,12 +946,16 @@ preloadAssets(() => {
     document.getElementById('quit-btn')?.addEventListener('click', () => {
         gameState.screen = 'start';
         gameState.paused = false;
+        activeGameLoopId++;
         if (window.stopEngine2D) window.stopEngine2D();
         engineStarted = false;
         showScreen('start-screen');
     });
     document.getElementById('restart-btn')?.addEventListener('click', () => startSinglePlayer());
     document.getElementById('menu-btn')?.addEventListener('click', () => {
+        gameState.screen = 'start';
+        gameState.paused = false;
+        activeGameLoopId++;
         if (window.stopEngine2D) window.stopEngine2D();
         engineStarted = false;
         showScreen('start-screen');
@@ -1013,8 +1045,10 @@ preloadAssets(() => {
         }
 
         // Game logic update loop (separate from the 3D render loop)
+        const loopId = ++activeGameLoopId;
         let lastTime = null;
         function gameLoop(ts) {
+            if (loopId !== activeGameLoopId) return;
             if (gameState.screen !== 'game') return;
             requestAnimationFrame(gameLoop);
             if (!lastTime) { lastTime = ts; return; }
@@ -1112,19 +1146,22 @@ preloadAssets(() => {
 
     // Multiplayer button
     document.getElementById('multiplayer-btn')?.addEventListener('click', () => {
-        network.connect();
         showScreen('lobby-screen');
-        const name = document.getElementById('player-name')?.value || 'Racer';
-        network.on('connected', () => {
-            network.joinRoom(name, gameState.selectedCar, gameState.selectedColor,
-                CONFIG.cars[gameState.selectedCar]?.defaultColor2 || '#000000');
+        const joinPayload = {
+            name: document.getElementById('player-name')?.value || 'Racer',
+            carType: gameState.selectedCar,
+            color1: gameState.selectedColor,
+            color2: CONFIG.cars[gameState.selectedCar]?.defaultColor2 || '#000000'
+        };
+        if (network.connected) {
+            network.joinRoom(joinPayload.name, joinPayload.carType, joinPayload.color1, joinPayload.color2);
+            pendingMultiplayerJoin = null;
             const statusEl = document.getElementById('connection-status');
             if (statusEl) statusEl.textContent = '✅ Connected';
-        });
-        network.on('disconnected', () => {
-            const statusEl = document.getElementById('connection-status');
-            if (statusEl) statusEl.textContent = '❌ Disconnected';
-        });
+            return;
+        }
+        pendingMultiplayerJoin = joinPayload;
+        network.connect();
     });
     document.getElementById('lobby-back-btn')?.addEventListener('click', () => showScreen('start-screen'));
     document.getElementById('ready-btn')?.addEventListener('click', () => network.toggleReady());
@@ -1137,5 +1174,4 @@ function formatTime(seconds) {
     const ms = Math.floor((seconds % 1) * 10);
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + '.' + ms;
 }
-
 

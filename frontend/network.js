@@ -28,6 +28,12 @@ class NetworkManager {
 
     connect() {
         const url = getWebSocketURL();
+        if (this.ws) {
+            const state = this.ws.readyState;
+            if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
+            try { this.ws.close(); } catch (_) {}
+            this.ws = null;
+        }
         try {
             this.ws = new WebSocket(url);
         } catch (e) {
@@ -35,7 +41,13 @@ class NetworkManager {
             return;
         }
         this.ws.onopen    = () => { this.connected = true;  this.emit('connected'); };
-        this.ws.onclose   = () => { this.connected = false; this.isMultiplayer = false; this.stopSending(); this.emit('disconnected'); };
+        this.ws.onclose   = () => {
+            this.connected = false;
+            this.isMultiplayer = false;
+            this.stopSending();
+            this.ws = null;
+            this.emit('disconnected');
+        };
         this.ws.onerror   = () => { console.log('WebSocket error — running in single-player mode'); };
         this.ws.onmessage = (e) => { try { this.handleMessage(JSON.parse(e.data)); } catch(err) {} };
     }
@@ -121,3 +133,4 @@ class NetworkManager {
 }
 
 const network = new NetworkManager();
+
