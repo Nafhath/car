@@ -422,7 +422,7 @@ let gameState = {
     paused: false, countdown: 0, raceStarted: false, raceFinished: false,
     totalTime: 0, lapTimes: [], bestLap: Infinity, currentLap: 1,
     maxSpeed: 0, driftScore: 0, currentDriftScore: 0, isDrifting: false,
-    powerupsUsed: 0, trackName: '', difficulty: 'medium',
+    powerupsUsed: 0, trackName: '', difficulty: 'medium', playerName: 'Racer',
 };
 
 // ============= PROJECTILES =============
@@ -849,6 +849,11 @@ preloadAssets(() => {
     console.log('Neon Drift v3 Engine Initialized.');
 
     const keys = { up: false, down: false, left: false, right: false, space: false, shoot: false, _shootHeld: false };
+    const isTypingTarget = (el) => {
+        if (!el) return false;
+        const tag = (el.tagName || '').toLowerCase();
+        return tag === 'input' || tag === 'textarea' || el.isContentEditable;
+    };
 
     // Keyboard input
     const KEY_MAP = {
@@ -856,9 +861,11 @@ preloadAssets(() => {
         Space: 'space', KeyF: 'shoot', KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right'
     };
     document.addEventListener('keydown', e => {
+        if (isTypingTarget(e.target)) return;
         if (KEY_MAP[e.code]) { keys[KEY_MAP[e.code]] = true; e.preventDefault(); }
     });
     document.addEventListener('keyup', e => {
+        if (isTypingTarget(e.target)) return;
         if (KEY_MAP[e.code]) keys[KEY_MAP[e.code]] = false;
     });
 
@@ -1057,6 +1064,8 @@ preloadAssets(() => {
         const cfg     = CONFIG.cars[carType];
         const color1  = cfg ? cfg.defaultColor1 : '#ffffff';
         const color2  = cfg ? cfg.defaultColor2 : '#000000';
+        const playerName = sanitizePlayerName(document.getElementById('player-name')?.value || gameState.playerName || 'Racer');
+        gameState.playerName = playerName;
 
         const trackData   = generateTrack();
         const trackCenter = catmullRomSpline(trackData.points);
@@ -1072,6 +1081,7 @@ preloadAssets(() => {
         );
 
         const playerCar = new Car(startPt.x, startPt.y, startAngle, carType, color1, color2);
+        playerCar.displayName = playerName;
 
         const aiCarTypes = Object.keys(CONFIG.cars).filter(k => k !== carType);
         const aiCars = [];
@@ -1092,6 +1102,7 @@ preloadAssets(() => {
                 aiCfg.defaultColor1, aiCfg.defaultColor2
             );
             ai.lineOffset = ((i % 2 === 0 ? -1 : 1) * (8 + (i % 3) * laneSpread * 0.2));
+            ai.car.displayName = aiCfg?.name || `AI ${i + 1}`;
             aiCars.push(ai);
         }
 
@@ -1255,6 +1266,7 @@ preloadAssets(() => {
             color1: CONFIG.cars[gameState.selectedCar]?.defaultColor1 || '#ffffff',
             color2: CONFIG.cars[gameState.selectedCar]?.defaultColor2 || '#000000'
         };
+        gameState.playerName = name;
 
         if (network.connected) {
             network.joinRoom(joinPayload.name, joinPayload.carType, joinPayload.color1, joinPayload.color2);

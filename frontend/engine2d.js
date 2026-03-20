@@ -285,6 +285,15 @@ function renderTrack(ctx, trackCenter, trackInner, trackOuter, themeName) {
     const theme = TRACK_THEMES[themeName] || TRACK_THEMES['Forest Trail'];
     const n = trackCenter.length;
 
+    // Soft shoulder to separate asphalt from terrain.
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+    ctx.lineWidth = 18;
+    ctx.beginPath();
+    ctx.moveTo(trackOuter[0].x, trackOuter[0].y);
+    for (let i = 1; i < n; i++) ctx.lineTo(trackOuter[i].x, trackOuter[i].y);
+    ctx.closePath();
+    ctx.stroke();
+
     ctx.beginPath();
     ctx.moveTo(trackOuter[0].x, trackOuter[0].y);
     for (let i = 1; i < n; i++) ctx.lineTo(trackOuter[i].x, trackOuter[i].y);
@@ -314,9 +323,9 @@ function renderTrack(ctx, trackCenter, trackInner, trackOuter, themeName) {
     ctx.closePath();
     ctx.stroke();
 
-    ctx.setLineDash([18, 28]);
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-    ctx.lineWidth = 2;
+    ctx.setLineDash([14, 20]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.42)';
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(trackCenter[0].x, trackCenter[0].y);
     for (let i = 1; i < n; i++) ctx.lineTo(trackCenter[i].x, trackCenter[i].y);
@@ -348,10 +357,21 @@ function renderFinishLine(ctx, trackCenter, trackWidth) {
 function renderTireMarks(ctx, cars) {
     cars.forEach(car => {
         if (!car?.tireMarks) return;
+        // Fade older marks and keep capped so the track doesn't turn into solid black.
+        for (let i = car.tireMarks.length - 1; i >= 0; i--) {
+            const m = car.tireMarks[i];
+            m.alpha = (m.alpha ?? 0.45) * 0.992;
+            if (m.alpha < 0.06) car.tireMarks.splice(i, 1);
+        }
+        const MAX_MARKS = 700;
+        if (car.tireMarks.length > MAX_MARKS) {
+            car.tireMarks.splice(0, car.tireMarks.length - MAX_MARKS);
+        }
+
         car.tireMarks.forEach(m => {
             ctx.beginPath();
-            ctx.arc(m.x, m.y, 2.5, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(20,20,20,${(m.alpha || 0.5) * 0.7})`;
+            ctx.arc(m.x, m.y, 2.2, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(20,20,20,${Math.min(0.38, (m.alpha || 0.1) * 0.62)})`;
             ctx.fill();
         });
     });
@@ -389,6 +409,25 @@ function renderCar(ctx, car, alpha) {
     }
 
     ctx.globalAlpha = 1;
+    ctx.restore();
+}
+
+function renderCarLabel(ctx, car, text, isPlayer = false) {
+    if (!car || !text) return;
+    ctx.save();
+    ctx.translate(car.x, car.y);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.font = isPlayer ? '700 12px Rajdhani, sans-serif' : '600 11px Rajdhani, sans-serif';
+    const y = -((car.height || 46) * 0.75) - 8;
+
+    // Soft dark outline for readability on any terrain.
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(10,14,24,0.9)';
+    ctx.strokeText(text, 0, y);
+
+    ctx.fillStyle = isPlayer ? '#a6ff00' : '#ffffff';
+    ctx.fillText(text, 0, y);
     ctx.restore();
 }
 
@@ -437,11 +476,18 @@ function render() {
     const pc = gs.playerCar;
     const camera = gs.camera || { x: 0, y: 0, zoom: 1 };
     if (pc) {
-        camera.x += (pc.x - camera.x) * 0.08;
-        camera.y += (pc.y - camera.y) * 0.08;
+        const fwdX = Math.sin(pc.angle);
+        const fwdY = -Math.cos(pc.angle);
+        const speedRatio = Math.min(1, Math.abs(pc.speed) / (pc.config?.maxSpeed || 280));
+        const lookahead = 45 + speedRatio * 120;
+        const targetX = pc.x + fwdX * lookahead;
+        const targetY = pc.y + fwdY * lookahead;
+        const followLerp = 0.065 + speedRatio * 0.06;
+        camera.x += (targetX - camera.x) * followLerp;
+        camera.y += (targetY - camera.y) * followLerp;
         const sr = Math.abs(pc.speed) / (pc.config?.maxSpeed || 280);
-        camera.targetZoom = 1.15 - sr * 0.25;
-        camera.zoom += ((camera.targetZoom || 1) - camera.zoom) * 0.05;
+        camera.targetZoom = 1.14 - sr * 0.22;
+        camera.zoom += ((camera.targetZoom || 1) - camera.zoom) * 0.04;
     }
     gs.camera = camera;
 
@@ -467,6 +513,12 @@ function render() {
         if (car) renderCar(ctx, car, 0.9);
     });
     if (pc) renderCar(ctx, pc, 1);
+
+    // Draw labels after cars so text stays visible.
+    if (pc) {
+        const playerLabel = pc.displayName || 'You';
+        renderCarLabel(ctx, pc, playerLabel, true);
+    }
 
     renderProjectiles(ctx, window.projectiles || [], window.bullets || []);
 
