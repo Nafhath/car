@@ -30,7 +30,7 @@ class NetworkManager {
         const url = getWebSocketURL();
         if (this.ws) {
             const state = this.ws.readyState;
-            if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
+            if (state === WebSocket.OPEN) return;
             try { this.ws.close(); } catch (_) {}
             this.ws = null;
         }
@@ -48,7 +48,15 @@ class NetworkManager {
             this.ws = null;
             this.emit('disconnected');
         };
-        this.ws.onerror   = () => { console.log('WebSocket error — running in single-player mode'); };
+        this.ws.onerror   = () => {
+            console.log('WebSocket error — running in single-player mode');
+            this.connected = false;
+            this.isMultiplayer = false;
+            this.stopSending();
+            try { this.ws?.close(); } catch (_) {}
+            this.ws = null;
+            this.emit('disconnected');
+        };
         this.ws.onmessage = (e) => { try { this.handleMessage(JSON.parse(e.data)); } catch(err) {} };
     }
 

@@ -893,17 +893,6 @@ preloadAssets(() => {
         });
     });
 
-    // Color swatches
-    document.querySelectorAll('.color-swatch').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.color-swatch').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            gameState.selectedColor = btn.dataset.color;
-        });
-    });
-    const customColorInput = document.getElementById('custom-color');
-    if (customColorInput) customColorInput.addEventListener('input', e => { gameState.selectedColor = e.target.value; });
-
     // Screen helper
     function showScreen(id) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -914,10 +903,74 @@ preloadAssets(() => {
     let engineStarted = false;
     let activeGameLoopId = 0;
     let pendingMultiplayerJoin = null;
+    let raceStartTimeoutId = null;
+
+    function sanitizePlayerName(raw) {
+        const trimmed = (raw || '').trim();
+        if (!trimmed) return 'Racer';
+        return trimmed.slice(0, 15);
+    }
+
+    function renderLobby() {
+        const playersEl = document.getElementById('lobby-players');
+        const readyBtn = document.getElementById('ready-btn');
+        const startBtn = document.getElementById('start-race-btn');
+        if (!playersEl || !readyBtn || !startBtn) return;
+
+        const players = network.players || [];
+        const localPlayer = players.find(p => p.id === network.playerId);
+        const allReady = players.length > 0 && players.every(p => !!p.ready);
+
+        playersEl.innerHTML = players.map(p => {
+            const tags = [
+                p.id === network.hostId ? 'HOST' : '',
+                p.id === network.playerId ? 'YOU' : '',
+                p.ready ? 'READY' : 'NOT READY'
+            ].filter(Boolean).join(' | ');
+            return `<div class="lobby-player-row"><span class="lobby-player-name">${p.name || 'Racer'}</span><span class="lobby-player-meta">${tags}</span></div>`;
+        }).join('');
+
+        readyBtn.textContent = localPlayer?.ready ? 'UNREADY' : 'READY';
+        startBtn.style.display = network.isHost ? 'inline-flex' : 'none';
+        startBtn.disabled = !allReady;
+    }
+
+    function resetToMenu() {
+        if (raceStartTimeoutId) {
+            clearTimeout(raceStartTimeoutId);
+            raceStartTimeoutId = null;
+        }
+        activeGameLoopId++;
+        gameState.screen = 'start';
+        gameState.paused = false;
+        gameState.raceStarted = false;
+        gameState.raceFinished = false;
+        gameState.currentLap = 1;
+        gameState.totalTime = 0;
+        gameState.trackName = '';
+        projectiles.length = 0;
+        bullets.length = 0;
+        pendingMultiplayerJoin = null;
+
+        const pauseOverlay = document.getElementById('pause-overlay');
+        if (pauseOverlay) pauseOverlay.classList.add('hidden');
+
+        if (window.stopEngine2D) window.stopEngine2D();
+        engineStarted = false;
+
+        if (window.gameState) {
+            window.gameState.playerCar = null;
+            window.gameState.aiCars = [];
+            window.gameState.trackCenter = null;
+            window.gameState.trackInner = null;
+            window.gameState.trackOuter = null;
+            window.gameState.trackWidth = 0;
+        }
+    }
 
     network.on('connected', () => {
         const statusEl = document.getElementById('connection-status');
-        if (statusEl) statusEl.textContent = '✅ Connected';
+        if (statusEl) statusEl.textContent = 'Connected';
         if (!pendingMultiplayerJoin) return;
         network.joinRoom(
             pendingMultiplayerJoin.name,
@@ -928,8 +981,43 @@ preloadAssets(() => {
         pendingMultiplayerJoin = null;
     });
     network.on('disconnected', () => {
+        pendingMultiplayerJoin = null;
         const statusEl = document.getElementById('connection-status');
-        if (statusEl) statusEl.textContent = '❌ Disconnected';
+        if (statusEl) statusEl.textContent = 'Disconnected';
+        const playersEl = document.getElementById('lobby-players');
+        if (playersEl) playersEl.innerHTML = '';
+    });
+    network.on('joined', () => {
+        const statusEl = document.getElementById('connection-status');
+        if (statusEl) statusEl.textContent = 'Joined lobby';
+        renderLobby();
+    });
+    network.on('player_joined', renderLobby);
+    network.on('player_left', renderLobby);
+    network.on('player_updated', renderLobby);
+    network.on('player_ready', renderLobby);
+    network.on('host_changed', renderLobby);
+    network.on('back_to_lobby', () => {
+        showScreen('lobby-screen');
+        const statusEl = document.getElementById('connection-status');
+        if (statusEl) statusEl.textContent = 'Back in lobby';
+        renderLobby();
+    });
+    network.on('race_starting', () => {
+        const statusEl = document.getElementById('connection-status');
+        if (statusEl) statusEl.textContent = 'Race starting...';
+        const readyBtn = document.getElementById('ready-btn');
+        const startBtn = document.getElementById('start-race-btn');
+        if (readyBtn) readyBtn.disabled = true;
+        if (startBtn) startBtn.disabled = true;
+    });
+    network.on('race_starting', (msg) => {
+        if (raceStartTimeoutId) clearTimeout(raceStartTimeoutId);
+        const delay = Math.max(0, (msg?.startTime || (Date.now() + 4000)) - Date.now());
+        raceStartTimeoutId = setTimeout(() => {
+            raceStartTimeoutId = null;
+            startSinglePlayer();
+        }, delay + 150);
     });
 
     // Pause / resume / quit
@@ -944,20 +1032,12 @@ preloadAssets(() => {
         document.getElementById('pause-overlay')?.classList.add('hidden');
     });
     document.getElementById('quit-btn')?.addEventListener('click', () => {
-        gameState.screen = 'start';
-        gameState.paused = false;
-        activeGameLoopId++;
-        if (window.stopEngine2D) window.stopEngine2D();
-        engineStarted = false;
+        resetToMenu();
         showScreen('start-screen');
     });
     document.getElementById('restart-btn')?.addEventListener('click', () => startSinglePlayer());
     document.getElementById('menu-btn')?.addEventListener('click', () => {
-        gameState.screen = 'start';
-        gameState.paused = false;
-        activeGameLoopId++;
-        if (window.stopEngine2D) window.stopEngine2D();
-        engineStarted = false;
+        resetToMenu();
         showScreen('start-screen');
     });
 
@@ -965,13 +1045,17 @@ preloadAssets(() => {
     document.getElementById('singleplayer-btn')?.addEventListener('click', () => startSinglePlayer());
 
     function startSinglePlayer() {
+        if (raceStartTimeoutId) {
+            clearTimeout(raceStartTimeoutId);
+            raceStartTimeoutId = null;
+        }
         // Clear projectiles and bullets from previous race
         projectiles.length = 0;
         bullets.length = 0;
 
         const carType = gameState.selectedCar;
-        const color1  = gameState.selectedColor;
         const cfg     = CONFIG.cars[carType];
+        const color1  = cfg ? cfg.defaultColor1 : '#ffffff';
         const color2  = cfg ? cfg.defaultColor2 : '#000000';
 
         const trackData   = generateTrack();
@@ -992,16 +1076,23 @@ preloadAssets(() => {
         const aiCarTypes = Object.keys(CONFIG.cars).filter(k => k !== carType);
         const aiCars = [];
         const AI_COUNT = 10;
-        const spacing = trackCenter.length / (AI_COUNT + 1);
+        const gridSpacing = 10;
+        const laneSpread = 30;
         for (let i = 0; i < AI_COUNT; i++) {
-            const offset = Math.floor(spacing * (i + 1));
+            const offset = (trackCenter.length - ((i + 1) * gridSpacing % trackCenter.length)) % trackCenter.length;
             const aiType = aiCarTypes[i % aiCarTypes.length];
             const aiCfg  = CONFIG.cars[aiType];
-            aiCars.push(new AICar(
-                trackCenter[offset].x, trackCenter[offset].y, startAngle,
+            const curr = trackCenter[offset];
+            const prev = trackCenter[(offset - 1 + trackCenter.length) % trackCenter.length];
+            const next = trackCenter[(offset + 1) % trackCenter.length];
+            const aiAngle = Math.atan2(next.x - prev.x, -(next.y - prev.y));
+            const ai = new AICar(
+                curr.x, curr.y, aiAngle,
                 aiType, trackCenter, offset,
                 aiCfg.defaultColor1, aiCfg.defaultColor2
-            ));
+            );
+            ai.lineOffset = ((i % 2 === 0 ? -1 : 1) * (8 + (i % 3) * laneSpread * 0.2));
+            aiCars.push(ai);
         }
 
         // Expose state to 2D engine / renderer
@@ -1140,6 +1231,9 @@ preloadAssets(() => {
             // Keep engine2d in sync
             window.gameState.playerCar = playerCar;
             window.gameState.aiCars    = aiCars;
+
+            // Minimap update
+            renderMinimap(trackCenter, playerCar, aiCars);
         }
         requestAnimationFrame(gameLoop);
     }
@@ -1147,25 +1241,46 @@ preloadAssets(() => {
     // Multiplayer button
     document.getElementById('multiplayer-btn')?.addEventListener('click', () => {
         showScreen('lobby-screen');
+        const statusEl = document.getElementById('connection-status');
+        if (statusEl) statusEl.textContent = 'Connecting...';
+
+        const rawName = document.getElementById('player-name')?.value || '';
+        const name = sanitizePlayerName(rawName);
+        const nameInput = document.getElementById('player-name');
+        if (nameInput) nameInput.value = name;
+
         const joinPayload = {
-            name: document.getElementById('player-name')?.value || 'Racer',
+            name,
             carType: gameState.selectedCar,
-            color1: gameState.selectedColor,
+            color1: CONFIG.cars[gameState.selectedCar]?.defaultColor1 || '#ffffff',
             color2: CONFIG.cars[gameState.selectedCar]?.defaultColor2 || '#000000'
         };
+
         if (network.connected) {
             network.joinRoom(joinPayload.name, joinPayload.carType, joinPayload.color1, joinPayload.color2);
             pendingMultiplayerJoin = null;
-            const statusEl = document.getElementById('connection-status');
-            if (statusEl) statusEl.textContent = '✅ Connected';
+            if (statusEl) statusEl.textContent = 'Connected';
             return;
         }
+
         pendingMultiplayerJoin = joinPayload;
         network.connect();
     });
-    document.getElementById('lobby-back-btn')?.addEventListener('click', () => showScreen('start-screen'));
-    document.getElementById('ready-btn')?.addEventListener('click', () => network.toggleReady());
-    document.getElementById('start-race-btn')?.addEventListener('click', () => network.startRace());
+
+    document.getElementById('lobby-back-btn')?.addEventListener('click', () => {
+        resetToMenu();
+        showScreen('start-screen');
+    });
+
+    document.getElementById('ready-btn')?.addEventListener('click', () => {
+        if (!network.connected) return;
+        network.toggleReady();
+    });
+
+    document.getElementById('start-race-btn')?.addEventListener('click', () => {
+        if (!network.connected || !network.isHost) return;
+        network.startRace();
+    });
 });
 
 function formatTime(seconds) {
@@ -1175,3 +1290,60 @@ function formatTime(seconds) {
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + '.' + ms;
 }
 
+function renderMinimap(trackCenter, playerCar, aiCars) {
+    const canvas = document.getElementById('minimapCanvas');
+    if (!canvas || !trackCenter || trackCenter.length < 2 || !playerCar) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of trackCenter) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+    }
+
+    const pad = 10;
+    const spanX = Math.max(1, maxX - minX);
+    const spanY = Math.max(1, maxY - minY);
+    const scale = Math.min((w - pad * 2) / spanX, (h - pad * 2) / spanY);
+    const ox = (w - spanX * scale) * 0.5;
+    const oy = (h - spanY * scale) * 0.5;
+    const mapPoint = (p) => ({ x: ox + (p.x - minX) * scale, y: oy + (p.y - minY) * scale });
+
+    // Track path
+    ctx.beginPath();
+    let pp = mapPoint(trackCenter[0]);
+    ctx.moveTo(pp.x, pp.y);
+    for (let i = 1; i < trackCenter.length; i++) {
+        pp = mapPoint(trackCenter[i]);
+        ctx.lineTo(pp.x, pp.y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = '#00d8ff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Player
+    let p = mapPoint(playerCar);
+    ctx.fillStyle = '#39ff14';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // AI cars
+    (aiCars || []).forEach(ai => {
+        const car = ai?.car || ai;
+        if (!car) return;
+        p = mapPoint(car);
+        ctx.fillStyle = '#ff4d4d';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
